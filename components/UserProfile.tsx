@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { UserPreferences, CEFRLevel } from '../types';
 import { ONBOARDING_LEVELS, ONBOARDING_TOPICS } from '../constants';
-import { X, Save, User, Award, BookOpen, Activity } from 'lucide-react';
+import { X, Save, User, Award, BookOpen, Activity, LogOut } from 'lucide-react';
 
 interface UserProfileProps {
   preferences: UserPreferences;
@@ -12,9 +12,10 @@ interface UserProfileProps {
   };
   onClose: () => void;
   onSave: (newPrefs: UserPreferences) => void;
+  onLogout?: () => void;
 }
 
-const UserProfile: React.FC<UserProfileProps> = ({ preferences, stats, onClose, onSave }) => {
+const UserProfile: React.FC<UserProfileProps> = ({ preferences, stats, onClose, onSave, onLogout }) => {
   const [name, setName] = useState(preferences.name);
   const [level, setLevel] = useState<CEFRLevel>(preferences.level);
   const [topics, setTopics] = useState<string[]>(preferences.topics);
@@ -138,20 +139,31 @@ const UserProfile: React.FC<UserProfileProps> = ({ preferences, stats, onClose, 
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-          <button 
-            onClick={onClose}
-            className="px-5 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition-colors"
-          >
-            Cancel
-          </button>
-          <button 
-            onClick={handleSave}
-            className="px-5 py-2.5 rounded-xl font-bold bg-brand-600 text-white hover:bg-brand-700 shadow-md shadow-brand-500/20 flex items-center gap-2 transition-all active:scale-95"
-          >
-            <Save size={18} />
-            Save Changes
-          </button>
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center gap-3">
+          {onLogout && (
+            <button 
+              onClick={onLogout}
+              className="px-4 py-2.5 rounded-xl font-bold text-rose-500 hover:bg-rose-50 flex items-center gap-2 transition-colors"
+            >
+              <LogOut size={18} />
+              Logout
+            </button>
+          )}
+          <div className="flex gap-3 ml-auto">
+            <button 
+              onClick={onClose}
+              className="px-5 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleSave}
+              className="px-5 py-2.5 rounded-xl font-bold bg-brand-600 text-white hover:bg-brand-700 shadow-md shadow-brand-500/20 flex items-center gap-2 transition-all active:scale-95"
+            >
+              <Save size={18} />
+              Save Changes
+            </button>
+          </div>
         </div>
       </div>
     </div>

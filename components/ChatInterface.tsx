@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Send, Mic, User, Bot, AlertCircle, Video, Loader2, BookOpen, PenTool, Volume2, ArrowRight, TrendingUp, TrendingDown, RefreshCcw, Briefcase, Smile, Coffee, MessageCircle, Info, Languages, MessageSquare, ChevronDown, ChevronUp, Play, BarChart2 } from 'lucide-react';
-import { ChatMessage, ChatMode } from '../types';
+import { Send, Mic, User, Bot, AlertCircle, Video, Loader2, BookOpen, PenTool, Volume2, ArrowRight, TrendingUp, TrendingDown, RefreshCcw, Briefcase, Smile, Coffee, MessageCircle, Info, Languages, MessageSquare, ChevronDown, ChevronUp, Play, BarChart2, CheckCircle, ArrowRightLeft, PanelLeft, BrainCircuit, BookmarkPlus } from 'lucide-react';
+import { ChatMessage, ChatMode, SavedItem, Improvement, LessonContext } from '../types';
 import RadarScore from './RadarScore';
 import { generateScenarioVideo, generateNativeSpeech } from '../services/geminiService';
 
@@ -15,7 +15,13 @@ interface ChatInterfaceProps {
   currentSituation?: string;
   chatMode: ChatMode;
   setChatMode: (mode: ChatMode) => void;
-  onContinueStory?: (nextReply: string) => void;
+  onContinueStory?: (nextReply: string, nextReplyVietnamese?: string) => void;
+  savedItems: SavedItem[];
+  onSaveItem: (item: SavedItem) => void;
+  currentLesson?: LessonContext | null;
+  translationDirection?: 'VN_to_EN' | 'EN_to_VN';
+  onToggleDirection?: () => void;
+  onToggleSidebar?: () => void;
 }
 
 const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
@@ -29,9 +35,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   currentSituation = "General context",
   chatMode,
   setChatMode,
-  onContinueStory
+  onContinueStory,
+  savedItems,
+  onSaveItem,
+  currentLesson,
+  translationDirection = 'VN_to_EN',
+  onToggleDirection,
+  onToggleSidebar
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [videoLoadingId, setVideoLoadingId] = useState<string | null>(null);
   const [audioLoadingId, setAudioLoadingId] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
@@ -39,13 +52,61 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   
   // CHANGED: Use 'collapsedAssessments' instead of 'expanded' to show details by default
   const [collapsedAssessments, setCollapsedAssessments] = useState<Set<string>>(new Set());
+  const [selection, setSelection] = useState<{ text: string; context: string; x: number; y: number } | null>(null);
 
   const isStoryWaiting = chatMode === 'story' && messages.length > 0 && messages[messages.length - 1].role === 'assistant' && !!messages[messages.length - 1].assessment;
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-    }
+    const handleMouseUp = () => {
+      const sel = window.getSelection();
+      if (sel && sel.toString().trim().length > 0 && sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        
+        let node = sel.anchorNode;
+        let contextText = '';
+        while (node && node.nodeType === Node.ELEMENT_NODE ? !(node as Element).classList.contains('message-text-container') : true) {
+            if (node.parentElement) {
+                node = node.parentElement;
+            } else {
+                break;
+            }
+        }
+        if (node && (node as Element).classList.contains('message-text-container')) {
+            contextText = (node as Element).textContent || '';
+        }
+
+        setSelection({
+          text: sel.toString().trim(),
+          context: contextText || sel.toString().trim(),
+          x: rect.left + rect.width / 2,
+          y: rect.top - 10
+        });
+      } else {
+        setSelection(null);
+      }
+    };
+
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => document.removeEventListener('mouseup', handleMouseUp);
+  }, []);
+
+  useEffect(() => {
+    const scrollToBottom = () => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      } else if (scrollRef.current) {
+        scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+      }
+    };
+
+    // Scroll immediately
+    scrollToBottom();
+
+    // Scroll again after a short delay to account for layout shifts (e.g., images loading, animations)
+    const timeoutId = setTimeout(scrollToBottom, 150);
+    
+    return () => clearTimeout(timeoutId);
   }, [messages, videoLoadingId, chatMode, isLoading, collapsedAssessments]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -147,11 +208,142 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       }
   };
 
+  // Helper to render user message with highlighted improvements
+  const renderUserMessage = (msg: ChatMessage, nextMsg?: ChatMessage) => {
+      const assessment = nextMsg?.role === 'assistant' ? nextMsg.assessment : undefined;
+      
+      if (!assessment?.improvements || assessment.improvements.length === 0) {
+          return msg.content;
+      }
+
+      const text = msg.content;
+      const matches: {start: number, end: number, improvement: Improvement}[] = [];
+      
+      assessment.improvements.forEach(imp => {
+          // Simple case-insensitive search
+          const lowerText = text.toLowerCase();
+          const lowerImp = imp.original.toLowerCase();
+          const idx = lowerText.indexOf(lowerImp); 
+          
+          if (idx !== -1) {
+              matches.push({
+                  start: idx,
+                  end: idx + imp.original.length,
+                  improvement: imp
+              });
+          }
+      });
+      
+      matches.sort((a, b) => a.start - b.start);
+      
+      // Filter overlaps
+      const uniqueMatches: typeof matches = [];
+      let lastEnd = 0;
+      for (const m of matches) {
+          if (m.start >= lastEnd) {
+              uniqueMatches.push(m);
+              lastEnd = m.end;
+          }
+      }
+      
+      const elements: React.ReactNode[] = [];
+      let lastIndex = 0;
+      
+      uniqueMatches.forEach((m, i) => {
+          if (m.start > lastIndex) {
+              elements.push(<span key={`text-${i}`}>{text.substring(lastIndex, m.start)}</span>);
+          }
+          
+          const isSaved = savedItems.some(s => s.original === m.improvement.original && s.correction === m.improvement.correction);
+          
+          elements.push(
+              <span 
+                  key={`highlight-${i}`}
+                  className={`cursor-pointer border-b-2 ${m.improvement.type === 'grammar' ? 'border-rose-400 bg-rose-50/50 text-rose-700' : 'border-purple-400 bg-purple-50/50 text-purple-700'} px-0.5 rounded transition-all hover:bg-opacity-100 relative group inline-block mx-0.5`}
+                  onClick={(e) => {
+                      e.stopPropagation();
+                      onSaveItem({
+                          id: Date.now().toString() + i,
+                          original: m.improvement.original,
+                          correction: m.improvement.correction,
+                          type: m.improvement.type,
+                          context: text,
+                          timestamp: Date.now(),
+                          masteryScore: 0
+                      });
+                  }}
+              >
+                  {text.substring(m.start, m.end)}
+                  {/* Tooltip */}
+                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-slate-800 text-white text-xs p-3 rounded-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10 shadow-xl">
+                      <span className="block font-bold mb-1 text-emerald-400 flex items-center gap-1">
+                          {m.improvement.correction}
+                          {isSaved && <CheckCircle size={10} />}
+                      </span>
+                      {m.improvement.explanation}
+                      <span className="block mt-2 text-[10px] text-slate-400 uppercase font-bold border-t border-slate-700 pt-1">
+                          {isSaved ? 'Saved' : 'Click to Save'}
+                      </span>
+                  </span>
+              </span>
+          );
+          
+          lastIndex = m.end;
+      });
+      
+      if (lastIndex < text.length) {
+          elements.push(<span key="text-end">{text.substring(lastIndex)}</span>);
+      }
+      
+      return <>{elements}</>;
+  };
+
   return (
     <div className="flex flex-col h-full bg-slate-50 relative">
       
+      {/* Text Selection Popover */}
+      {selection && (
+        <div 
+          className="fixed z-50 bg-slate-900 text-white px-3 py-2 rounded-lg shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2"
+          style={{ 
+            left: selection.x, 
+            top: selection.y, 
+            transform: 'translate(-50%, -100%)' 
+          }}
+        >
+          <button 
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onSaveItem({
+                id: Date.now().toString(),
+                original: selection.text,
+                correction: selection.text,
+                type: 'vocabulary',
+                context: selection.context,
+                timestamp: Date.now(),
+                masteryScore: 0
+              });
+              window.getSelection()?.removeAllRanges();
+              setSelection(null);
+            }}
+            className="flex items-center gap-1.5 text-xs font-medium hover:text-brand-300 transition-colors"
+          >
+            <BookmarkPlus size={14} />
+            Save to Dictionary
+          </button>
+        </div>
+      )}
+
       {/* Top Mode Switcher */}
-      <div className="flex-none px-4 py-3 bg-white/95 backdrop-blur-sm border-b border-slate-200 flex justify-start md:justify-center gap-2 shadow-sm z-10 overflow-x-auto no-scrollbar touch-pan-x">
+      <div className="flex-none px-4 py-3 bg-white/95 backdrop-blur-sm border-b border-slate-200 flex justify-start md:justify-center gap-2 shadow-sm z-10 overflow-x-auto no-scrollbar touch-pan-x items-center">
+          {onToggleSidebar && (
+              <button 
+                  onClick={onToggleSidebar}
+                  className="md:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors shrink-0"
+              >
+                  <PanelLeft size={18} />
+              </button>
+          )}
           <button 
             onClick={() => setChatMode('roleplay')}
             className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
@@ -185,7 +377,43 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
               <Languages size={14} />
               Translator
           </button>
+          <button 
+            onClick={() => setChatMode('quiz')}
+            className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+                chatMode === 'quiz' 
+                ? 'bg-amber-50 text-amber-600 border border-amber-200 ring-2 ring-amber-100 ring-offset-1' 
+                : 'text-slate-500 hover:bg-slate-50 border border-slate-100 hover:border-slate-300'
+            }`}
+          >
+              <BrainCircuit size={14} />
+              Quiz
+          </button>
       </div>
+
+      {/* Mobile Task Card (Roleplay Mode Only) */}
+      {chatMode === 'roleplay' && currentLesson && (
+        <div className="md:hidden px-4 py-3 bg-slate-50 border-b border-slate-200">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative">
+                <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                        <ArrowRight size={12} className="text-brand-500" />
+                        Translate to {translationDirection === 'VN_to_EN' ? 'English' : 'Vietnamese'}
+                    </span>
+                    {onToggleDirection && (
+                        <button 
+                            onClick={onToggleDirection}
+                            className="p-1.5 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-brand-600 transition-colors"
+                        >
+                            <ArrowRightLeft size={14} />
+                        </button>
+                    )}
+                </div>
+                <p className="text-lg font-bold text-slate-800 leading-tight pr-8">
+                    "{translationDirection === 'VN_to_EN' ? currentLesson.vietnamesePhrase : currentLesson.englishPhrase}"
+                </p>
+            </div>
+        </div>
+      )}
 
       {/* Messages Area */}
       <div 
@@ -213,6 +441,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         {messages.map((msg, index) => {
             const isLastMessage = index === messages.length - 1;
 
+            if (msg.role === 'system') {
+                return (
+                    <div key={msg.id} className="flex w-full justify-center my-4">
+                        <div className="bg-slate-100 text-slate-500 text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wider border border-slate-200">
+                            {msg.content}
+                        </div>
+                    </div>
+                );
+            }
+
             return (
           <div 
             key={msg.id} 
@@ -239,12 +477,53 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 
                 {/* Text Bubble */}
                 {msg.content && (
-                    <div className={`px-4 py-3 md:px-6 md:py-4 rounded-2xl text-[15px] md:text-base shadow-sm break-words leading-relaxed ${
+                    <div className={`px-4 py-3 md:px-6 md:py-4 rounded-2xl text-[15px] md:text-base shadow-sm break-words leading-relaxed relative group message-text-container ${
                     msg.role === 'user' 
                         ? 'bg-slate-800 text-white rounded-tr-sm ml-auto' 
                         : 'bg-white text-slate-800 border border-slate-100 rounded-tl-sm'
                     }`}>
-                        {msg.content}
+                        {msg.role === 'user' ? renderUserMessage(msg, messages[index + 1]) : msg.content}
+                        
+                        {/* Play audio button for user message */}
+                        {msg.role === 'user' && (
+                            <button
+                                onClick={() => handlePlayAudio(msg.id, msg.content, 'user_input')}
+                                disabled={audioLoadingId === `${msg.id}-user_input`}
+                                className="absolute -left-10 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white text-slate-400 hover:text-brand-600 shadow-sm border border-slate-100 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                                title="Listen to your pronunciation"
+                            >
+                                {audioLoadingId === `${msg.id}-user_input` ? <Loader2 size={14} className="animate-spin" /> : <Volume2 size={14} />}
+                            </button>
+                        )}
+
+                        {/* Actions for assistant message */}
+                        {msg.role === 'assistant' && (
+                            <div className="absolute -bottom-3 right-4 flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                    onClick={() => onSaveItem({
+                                        id: Date.now().toString(),
+                                        original: msg.content,
+                                        correction: msg.content,
+                                        type: 'vocabulary',
+                                        context: msg.content,
+                                        timestamp: Date.now(),
+                                        masteryScore: 0
+                                    })}
+                                    className="p-1.5 bg-white rounded-full text-slate-400 hover:text-brand-600 shadow-sm border border-slate-100"
+                                    title="Save to Dictionary"
+                                >
+                                    <BookmarkPlus size={14} />
+                                </button>
+                                <button
+                                    onClick={() => handlePlayAudio(msg.id, msg.content, 'assistant_msg')}
+                                    disabled={audioLoadingId === `${msg.id}-assistant_msg`}
+                                    className="p-1.5 bg-white rounded-full text-slate-400 hover:text-brand-600 disabled:opacity-50 shadow-sm border border-slate-100"
+                                    title="Listen"
+                                >
+                                    {audioLoadingId === `${msg.id}-assistant_msg` ? <Loader2 size={12} className="animate-spin" /> : <Volume2 size={14} />}
+                                </button>
+                            </div>
+                        )}
                         
                         {/* Collapsible Translation */}
                         {msg.role === 'assistant' && msg.storyTranslation && (
@@ -295,14 +574,31 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                              <div className={`flex items-center gap-2 text-xs font-bold ${colorClass} uppercase tracking-wider`}>
                                                  <Icon size={14} /> {label}
                                              </div>
-                                             <button 
-                                                onClick={() => handlePlayAudio(msg.id, text as string, key)}
-                                                disabled={audioLoadingId === `${msg.id}-${key}`}
-                                                className="p-1.5 rounded-full bg-white text-slate-400 hover:text-brand-600 hover:shadow-sm transition-all disabled:opacity-50"
-                                                title="Play Audio"
-                                             >
-                                                 {audioLoadingId === `${msg.id}-${key}` ? <Loader2 size={14} className="animate-spin" /> : <Volume2 size={16} />}
-                                             </button>
+                                             <div className="flex items-center gap-1">
+                                                 <button 
+                                                     onClick={() => onSaveItem({
+                                                         id: Date.now().toString(),
+                                                         original: text as string,
+                                                         correction: text as string,
+                                                         type: 'vocabulary',
+                                                         context: text as string,
+                                                         timestamp: Date.now(),
+                                                         masteryScore: 0
+                                                     })}
+                                                     className="p-1.5 rounded-full bg-white text-slate-400 hover:text-brand-600 hover:shadow-sm transition-all"
+                                                     title="Save to Dictionary"
+                                                 >
+                                                     <BookmarkPlus size={14} />
+                                                 </button>
+                                                 <button 
+                                                    onClick={() => handlePlayAudio(msg.id, text as string, key)}
+                                                    disabled={audioLoadingId === `${msg.id}-${key}`}
+                                                    className="p-1.5 rounded-full bg-white text-slate-400 hover:text-brand-600 hover:shadow-sm transition-all disabled:opacity-50"
+                                                    title="Play Audio"
+                                                 >
+                                                     {audioLoadingId === `${msg.id}-${key}` ? <Loader2 size={14} className="animate-spin" /> : <Volume2 size={16} />}
+                                                 </button>
+                                             </div>
                                          </div>
                                          <p className="text-slate-800 font-medium text-base leading-relaxed">{text as string}</p>
                                      </div>
@@ -356,14 +652,29 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
                         {/* Correction (Highlighted) */}
                         {(msg.assessment.correction || msg.assessment.betterAlternative) && (
-                            <div className="bg-orange-50/80 p-3 rounded-xl border border-orange-100/80 flex gap-3">
+                            <div className="bg-orange-50/80 p-3 rounded-xl border border-orange-100/80 flex gap-3 relative group/correction">
                                 <div className="mt-0.5 shrink-0"><AlertCircle size={18} className="text-orange-500"/></div>
-                                <div>
+                                <div className="pr-8">
                                     <span className="text-[10px] font-bold text-orange-600 uppercase block mb-0.5 tracking-wider">Better Way to Say It</span>
-                                    <p className="text-slate-900 font-medium text-sm">
+                                    <p className="text-slate-900 font-medium text-sm message-text-container">
                                         {msg.assessment.correction || msg.assessment.betterAlternative}
                                     </p>
                                 </div>
+                                <button 
+                                    onClick={() => onSaveItem({
+                                        id: Date.now().toString(),
+                                        original: msg.content,
+                                        correction: msg.assessment!.correction || msg.assessment!.betterAlternative || '',
+                                        type: 'grammar',
+                                        context: msg.assessment!.correction || msg.assessment!.betterAlternative || '',
+                                        timestamp: Date.now(),
+                                        masteryScore: 0
+                                    })}
+                                    className="absolute top-3 right-3 opacity-100 md:opacity-0 group-hover/correction:opacity-100 transition-opacity p-1.5 bg-white/80 rounded-full text-orange-400 hover:text-orange-600 shadow-sm border border-orange-100"
+                                    title="Save to Dictionary"
+                                >
+                                    <BookmarkPlus size={14} />
+                                </button>
                             </div>
                         )}
                     </div>
@@ -439,15 +750,33 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                                     <div className={`flex items-center gap-1.5 text-[10px] font-bold ${tone.color} uppercase`}>
                                                         <tone.icon size={12} /> {tone.label}
                                                     </div>
-                                                    <button 
-                                                        onClick={() => handlePlayAudio(msg.id, (msg.assessment!.alternativeTones as any)[tone.key], tone.key)}
-                                                        disabled={audioLoadingId === `${msg.id}-${tone.key}`}
-                                                        className="opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-white rounded-full text-slate-400 hover:text-brand-600 disabled:opacity-50 shadow-sm border border-slate-100"
-                                                    >
-                                                        {audioLoadingId === `${msg.id}-${tone.key}` ? <Loader2 size={12} className="animate-spin" /> : <Volume2 size={14} />}
-                                                    </button>
+                                                    <div className="flex items-center gap-1">
+                                                        <button 
+                                                            onClick={() => onSaveItem({
+                                                                id: Date.now().toString(),
+                                                                original: (msg.assessment!.alternativeTones as any)[tone.key],
+                                                                correction: (msg.assessment!.alternativeTones as any)[tone.key],
+                                                                type: 'vocabulary',
+                                                                context: (msg.assessment!.alternativeTones as any)[tone.key],
+                                                                timestamp: Date.now(),
+                                                                masteryScore: 0
+                                                            })}
+                                                            className="opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-white rounded-full text-slate-400 hover:text-brand-600 shadow-sm border border-slate-100"
+                                                            title="Save to Dictionary"
+                                                        >
+                                                            <BookmarkPlus size={14} />
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handlePlayAudio(msg.id, (msg.assessment!.alternativeTones as any)[tone.key], tone.key)}
+                                                            disabled={audioLoadingId === `${msg.id}-${tone.key}`}
+                                                            className="opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-white rounded-full text-slate-400 hover:text-brand-600 disabled:opacity-50 shadow-sm border border-slate-100"
+                                                            title="Listen"
+                                                        >
+                                                            {audioLoadingId === `${msg.id}-${tone.key}` ? <Loader2 size={12} className="animate-spin" /> : <Volume2 size={14} />}
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                                <p className="text-sm text-slate-700">"{(msg.assessment!.alternativeTones as any)[tone.key]}"</p>
+                                                <p className="text-sm text-slate-700 message-text-container">"{(msg.assessment!.alternativeTones as any)[tone.key]}"</p>
                                             </div>
                                         ))}
                                     </div>
@@ -527,7 +856,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                          {chatMode === 'story' && isLastMessage && (
                              <div className="flex flex-col gap-3">
                                  <button 
-                                     onClick={() => onContinueStory && msg.assessment?.nextAgentReply && onContinueStory(msg.assessment.nextAgentReply)}
+                                     onClick={() => onContinueStory && msg.assessment?.nextAgentReply && onContinueStory(msg.assessment.nextAgentReply, msg.assessment.nextAgentReplyVietnamese)}
                                      className="w-full py-4 bg-purple-600 text-white hover:bg-purple-700 rounded-xl text-sm font-bold shadow-lg shadow-purple-500/20 flex items-center justify-center gap-2 transform transition-all active:scale-[0.98]"
                                  >
                                      <Play size={18} fill="currentColor" /> Continue Conversation
@@ -537,6 +866,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                      className="w-full py-3 bg-white text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-xl text-xs font-bold border border-slate-200 transition-colors"
                                  >
                                      End & Start New Story
+                                 </button>
+                             </div>
+                         )}
+
+                         {/* Quiz Next Option */}
+                         {chatMode === 'quiz' && isLastMessage && (
+                             <div className="flex flex-col gap-3">
+                                 <button 
+                                     onClick={() => onNextLesson('same')}
+                                     className="w-full py-4 bg-amber-500 text-white hover:bg-amber-600 rounded-xl text-sm font-bold shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transform transition-all active:scale-[0.98]"
+                                 >
+                                     <BrainCircuit size={18} fill="currentColor" /> Next Question
                                  </button>
                              </div>
                          )}
@@ -558,6 +899,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     ? 'bg-indigo-500 text-white' 
                 : chatMode === 'story'
                     ? 'bg-purple-500 text-white'
+                : chatMode === 'quiz'
+                    ? 'bg-amber-500 text-white'
                     : 'bg-emerald-500 text-white'
               }`}>
                 <Bot size={18} />
@@ -565,14 +908,17 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
               <div className="bg-white text-slate-800 border border-slate-100 rounded-2xl rounded-tl-none px-5 py-4 shadow-sm flex items-center gap-1.5">
                  <span className="text-xs text-slate-400 font-bold mr-2 uppercase tracking-wider">Analysis in progress</span>
                  <div className="flex gap-1">
-                    <div className={`w-1.5 h-1.5 rounded-full animate-bounce ${chatMode === 'translator' ? 'bg-indigo-400' : chatMode === 'story' ? 'bg-purple-400' : 'bg-brand-400'}`} style={{ animationDelay: '0ms'}}></div>
-                    <div className={`w-1.5 h-1.5 rounded-full animate-bounce ${chatMode === 'translator' ? 'bg-indigo-400' : chatMode === 'story' ? 'bg-purple-400' : 'bg-brand-400'}`} style={{ animationDelay: '150ms'}}></div>
-                    <div className={`w-1.5 h-1.5 rounded-full animate-bounce ${chatMode === 'translator' ? 'bg-indigo-400' : chatMode === 'story' ? 'bg-purple-400' : 'bg-brand-400'}`} style={{ animationDelay: '300ms'}}></div>
+                    <div className={`w-1.5 h-1.5 rounded-full animate-bounce ${chatMode === 'translator' ? 'bg-indigo-400' : chatMode === 'story' ? 'bg-purple-400' : chatMode === 'quiz' ? 'bg-amber-400' : 'bg-brand-400'}`} style={{ animationDelay: '0ms'}}></div>
+                    <div className={`w-1.5 h-1.5 rounded-full animate-bounce ${chatMode === 'translator' ? 'bg-indigo-400' : chatMode === 'story' ? 'bg-purple-400' : chatMode === 'quiz' ? 'bg-amber-400' : 'bg-brand-400'}`} style={{ animationDelay: '150ms'}}></div>
+                    <div className={`w-1.5 h-1.5 rounded-full animate-bounce ${chatMode === 'translator' ? 'bg-indigo-400' : chatMode === 'story' ? 'bg-purple-400' : chatMode === 'quiz' ? 'bg-amber-400' : 'bg-brand-400'}`} style={{ animationDelay: '300ms'}}></div>
                  </div>
               </div>
             </div>
           </div>
         )}
+        
+        {/* Invisible element at the end of the messages to scroll to */}
+        <div ref={messagesEndRef} className="h-4" />
       </div>
 
       {/* Input Area - Fixed Sticky Bottom */}
@@ -582,6 +928,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
             <div className={`flex items-center gap-2 bg-slate-100 p-1.5 rounded-[2rem] border border-transparent focus-within:border-slate-200 focus-within:ring-2 focus-within:bg-white transition-all shadow-sm ${
                 chatMode === 'translator' ? 'focus-within:ring-indigo-500/30 focus-within:border-indigo-500' 
                 : chatMode === 'story' ? 'focus-within:ring-purple-500/30 focus-within:border-purple-500' 
+                : chatMode === 'quiz' ? 'focus-within:ring-amber-500/30 focus-within:border-amber-500'
                 : 'focus-within:ring-brand-500/30 focus-within:border-brand-500'
             }`}>
               <button 
@@ -619,6 +966,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 className={`p-3 text-white rounded-full shadow-md transition-all transform active:scale-95 disabled:opacity-50 disabled:shadow-none disabled:active:scale-100 flex-shrink-0 ${
                     chatMode === 'translator' ? 'bg-indigo-600 hover:bg-indigo-700'
                     : chatMode === 'story' ? 'bg-purple-600 hover:bg-purple-700'
+                    : chatMode === 'quiz' ? 'bg-amber-600 hover:bg-amber-700'
                     : 'bg-brand-600 hover:bg-brand-700'
                 }`}
               >

@@ -1,6 +1,6 @@
 
 export type CEFRLevel = 'A1-A2' | 'B1-B2' | 'C1-C2';
-export type ChatMode = 'roleplay' | 'translator' | 'story';
+export type ChatMode = 'roleplay' | 'translator' | 'story' | 'quiz';
 
 export interface UserPreferences {
   name: string; // Added user name
@@ -38,6 +38,25 @@ export interface StoryScenario {
   };
 }
 
+export interface Improvement {
+  original: string; // The phrase in user's input
+  correction: string; // The better version
+  type: 'grammar' | 'vocabulary';
+  explanation: string;
+}
+
+export interface SavedItem {
+  id: string;
+  original: string;
+  correction: string;
+  type: 'grammar' | 'vocabulary';
+  context: string; // The full sentence where it appeared
+  timestamp: number;
+  masteryScore: number; // 0-100
+  explanation?: string;
+  examples?: { en: string; vn: string }[];
+}
+
 export interface AssessmentResult {
   score: number; // 1-10
   accuracyScore: number;
@@ -49,6 +68,7 @@ export interface AssessmentResult {
   analysis: string;
   grammarAnalysis: string; 
   vocabularyAnalysis: string; 
+  improvements: Improvement[]; // Structured errors/suggestions
   userTone: string; 
   alternativeTones: {
     formal: string;
@@ -57,6 +77,7 @@ export interface AssessmentResult {
     conversational: string;
   };
   nextAgentReply?: string; // For Story Mode: The agent's continuation
+  nextAgentReplyVietnamese?: string; // For Story Mode: The translation of the agent's continuation
 }
 
 export interface TranslationResult {
@@ -67,6 +88,15 @@ export interface TranslationResult {
     informal: string;
     conversational: string;
   };
+}
+
+export interface ConversationHistory {
+  id: string;
+  mode: ChatMode;
+  timestamp: number;
+  title: string;
+  messages: ChatMessage[];
+  context?: LessonContext | StoryScenario;
 }
 
 export interface ChatMessage {

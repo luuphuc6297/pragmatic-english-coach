@@ -27,6 +27,9 @@ const MOCK_ASSESSMENT_RESULT: AssessmentResult = {
   analysis: "You used the conditional tense correctly. To sound more native in a business context, 'EOD' is common for 'end of day'.",
   grammarAnalysis: "Grammar Point: Subject-verb agreement is correct. Good use of polite markers.",
   vocabularyAnalysis: "Vocabulary Point: 'Update' is a good choice, but consider specific timeframes.",
+  improvements: [
+      { original: "update me", correction: "update me by EOD", type: "vocabulary", explanation: "Adding a timeframe makes it more actionable." }
+  ],
   userTone: "Polite/Formal",
   alternativeTones: {
     formal: "I would be grateful for an update at your earliest convenience.",
@@ -34,7 +37,8 @@ const MOCK_ASSESSMENT_RESULT: AssessmentResult = {
     informal: "Lmk what's up later.",
     conversational: "Could you give me an update by the end of the day?"
   },
-  nextAgentReply: "Certainly! I will have the report ready for you by 5 PM."
+  nextAgentReply: "Certainly! I will have the report ready for you by 5 PM.",
+  nextAgentReplyVietnamese: "Chắc chắn rồi! Tôi sẽ chuẩn bị xong báo cáo cho bạn trước 5 giờ chiều."
 };
 
 const MOCK_TRANSLATION_RESULT: TranslationResult = {
@@ -114,6 +118,19 @@ const assessmentSchema: Schema = {
     correction: { type: Type.STRING, description: "Corrected version if the user input is grammatically wrong. Null if correct.", nullable: true },
     betterAlternative: { type: Type.STRING, description: "A more natural/native phrasing if the user input is correct but unnatural. Null if perfect.", nullable: true },
     analysis: { type: Type.STRING, description: "Detailed summary of why this score was given." },
+    improvements: {
+        type: Type.ARRAY,
+        items: {
+            type: Type.OBJECT,
+            properties: {
+                original: { type: Type.STRING, description: "The exact substring from the user's input that needs improvement." },
+                correction: { type: Type.STRING, description: "The corrected word or phrase." },
+                type: { type: Type.STRING, enum: ["grammar", "vocabulary"] },
+                explanation: { type: Type.STRING, description: "Short explanation of why this change is needed." }
+            },
+            required: ["original", "correction", "type", "explanation"]
+        }
+    },
     userTone: { type: Type.STRING, description: "The detected tone/register of the user's input (e.g., 'Too Formal', 'Casual', 'Rude', 'Neutral')." },
     alternativeTones: {
       type: Type.OBJECT,
@@ -125,9 +142,10 @@ const assessmentSchema: Schema = {
       },
       required: ["formal", "friendly", "informal", "conversational"]
     },
-    nextAgentReply: { type: Type.STRING, description: "The next logical response from the Agent to continue the story conversation.", nullable: true }
+    nextAgentReply: { type: Type.STRING, description: "The next logical response from the Agent to continue the story conversation.", nullable: true },
+    nextAgentReplyVietnamese: { type: Type.STRING, description: "The Vietnamese translation of the nextAgentReply.", nullable: true }
   },
-  required: ["score", "accuracyScore", "naturalnessScore", "complexityScore", "feedback", "grammarAnalysis", "vocabularyAnalysis", "analysis", "userTone", "alternativeTones"]
+  required: ["score", "accuracyScore", "naturalnessScore", "complexityScore", "feedback", "grammarAnalysis", "vocabularyAnalysis", "analysis", "improvements", "userTone", "alternativeTones"]
 };
 
 const lessonSchema: Schema = {
@@ -224,13 +242,14 @@ Instructions:
 1. Analyze Grammatical Accuracy in ${targetLang}.
 2. Analyze Pragmatic Naturalness. Is this how a native speaker sounds in this context?
 3. Analyze Vocabulary. Are the words precise?
-4. **Tone Analysis**: Identify the tone of the user's input.
-5. **Generate Variations**: Provide 4 distinct versions of the translation in ${targetLang}:
+4. **Identify Specific Improvements**: Find exact substrings in the user's input that are wrong or unnatural. Provide corrections and explanations for each.
+5. **Tone Analysis**: Identify the tone of the user's input.
+6. **Generate Variations**: Provide 4 distinct versions of the translation in ${targetLang}:
    - Formal
    - Friendly
    - Informal
    - Conversational
-6. Provide scores and detailed feedback.
+7. Provide scores and detailed feedback.
 `;
 
   try {
@@ -265,7 +284,8 @@ export const generateNextLesson = async (
     userTopics: string[]
 ): Promise<LessonContext> => {
     const modelId = 'gemini-3-flash-preview';
-    const recentContext = previousTitles.slice(-5).join(", "); 
+    // Use up to 20 previous titles to ensure better uniqueness
+    const recentContext = previousTitles.slice(-20).join(" | "); 
     const levelSpecs = {
         'A1-A2': 'Sentence Length: 5-8 words. Vocabulary: High frequency. Focus: Basic needs, simple questions.',
         'B1-B2': 'Sentence Length: 12-18 words. Vocabulary: Idioms, phrasal verbs. Focus: Opinions, experiences, polite requests.',
@@ -282,13 +302,13 @@ export const generateNextLesson = async (
     - Topic: ${chosenTopic}
     - Specs: ${targetSpec}
     Instructions:
-    1. **Context First**: Create a specific, realistic situation within '${chosenTopic}'.
+    1. **Context First**: Create a specific, highly unique, and realistic situation within '${chosenTopic}'.
     2. **Avoid Repetition**: Do NOT use the structure "I need to [verb] the [noun]" or "Please [verb]...".
     3. **Naturalness**: 
        - The Vietnamese phrase MUST sound like real spoken Vietnamese (use particles like 'nhỉ', 'à', 'với', 'hộ mình', 'cái', etc.).
        - The English phrase MUST sound native and appropriate for the context (Slang for friends, Formal for business).
     4. **Variety**: Generate a Question, an Exclamation, a Complaint, or an Idiomatic expression. DO NOT just generate a simple statement.
-    5. **Uniqueness**: Do not repeat these recent topics: [${recentContext}].
+    5. **STRICT UNIQUENESS**: You MUST NOT generate any scenario that is similar in theme, title, or situation to these previously generated scenarios: [${recentContext}]. Think outside the box and create a completely new sub-topic or situation.
     Output JSON Format:
     {
       "id": "generated_id",
@@ -360,14 +380,15 @@ export const generateToneTranslations = async (text: string): Promise<Translatio
   }
 }
 
-export const generateStoryScenario = async (level: CEFRLevel, topic: string): Promise<StoryScenario> => {
+export const generateStoryScenario = async (level: CEFRLevel, topic: string, previousTitles: string[] = []): Promise<StoryScenario> => {
     const modelId = 'gemini-3-flash-preview';
+    const recentContext = previousTitles.slice(-20).join(" | "); 
     const prompt = `
     Create a conversation starter scenario for an English learner.
     Level: ${level}.
     Topic: ${topic}.
     Instructions:
-    1. Define a specific situation where the User interacts with an Agent.
+    1. Define a specific, highly unique situation where the User interacts with an Agent.
     2. Give the Agent a name.
     3. Write the FIRST line (opening line) that the Agent says to the User. It should be a greeting or a question to start the conversation.
     4. Provide the Vietnamese translation for that opening line.
@@ -375,6 +396,7 @@ export const generateStoryScenario = async (level: CEFRLevel, topic: string): Pr
        - Level 1: Meaning/Intent hint (e.g., "You should greet back and ask about...").
        - Level 2: Structure hint (e.g., "Start with 'Hi', then use Present Perfect...").
        - Level 3: Vocabulary hint (e.g., "Use the word '...').
+    6. **STRICT UNIQUENESS**: You MUST NOT generate any scenario that is similar in theme, title, or situation to these previously generated scenarios: [${recentContext}]. Think outside the box and create a completely new sub-topic or situation.
     Output JSON.
     `;
 
@@ -417,7 +439,8 @@ export const evaluateStoryTurn = async (
     Task:
     1. Evaluate the user's reply for logic (does it make sense?), grammar, and appropriate tone for the situation.
     2. Assign scores (1-10).
-    3. Generate the Next Logical Reply for the Agent to continue the conversation naturally.
+    3. **Identify Specific Improvements**: Find exact substrings in the user's input that are wrong or unnatural. Provide corrections and explanations for each.
+    4. Generate the Next Logical Reply for the Agent to continue the conversation naturally.
     Return JSON.
     `;
 
@@ -439,6 +462,53 @@ export const evaluateStoryTurn = async (
 
     } catch (error) {
         console.warn("Story Eval Error (Falling back to Mock):", error);
+        return MOCK_ASSESSMENT_RESULT;
+    }
+}
+
+export const evaluateQuizAnswer = async (
+    savedItem: SavedItem,
+    userAnswer: string
+): Promise<AssessmentResult> => {
+    const modelId = 'gemini-3-flash-preview';
+    const prompt = `
+    Role: Vocabulary and Grammar Quiz Master.
+    Context:
+    The user is being tested on a saved item from their learning history.
+    - Original phrase/context: "${savedItem.original}"
+    - Correct target phrase/usage: "${savedItem.correction}"
+    - Item Type: ${savedItem.type}
+    - Full Context: "${savedItem.context}"
+    
+    The user's answer to the quiz question is: "${userAnswer}"
+    
+    Task:
+    1. Evaluate if the user's answer correctly demonstrates understanding of the target phrase/usage ("${savedItem.correction}").
+    2. Assign scores (1-10). If they nailed it, give high scores.
+    3. Provide constructive feedback.
+    4. **Identify Specific Improvements**: Find exact substrings in the user's input that are wrong or unnatural. Provide corrections and explanations for each.
+    5. Generate the Next Logical Reply (nextAgentReply) which should be a short encouraging message or a follow-up question.
+    Return JSON.
+    `;
+
+    try {
+        const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
+            model: modelId,
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: assessmentSchema,
+                temperature: 0.4,
+            }
+        }));
+
+        const jsonText = response.text;
+        if (!jsonText) throw new Error("No response from AI");
+        
+        return JSON.parse(jsonText) as AssessmentResult;
+
+    } catch (error) {
+        console.warn("Quiz Eval Error (Falling back to Mock):", error);
         return MOCK_ASSESSMENT_RESULT;
     }
 }
@@ -489,6 +559,67 @@ export const generateScenarioVideo = async (situation: string, phrase: string): 
         }
         console.error("Video Generation Error:", error);
         throw error;
+    }
+}
+
+export const generateDictionaryExplanation = async (phrase: string, context: string): Promise<{ explanation: string, examples: { en: string, vn: string }[] }> => {
+    const modelId = 'gemini-3-flash-preview';
+    const prompt = `
+    You are an expert English teacher. The user wants to save the phrase/word "${phrase}" from the following context:
+    "${context}"
+
+    Please provide:
+    1. A clear, concise explanation of what this phrase means in this specific context (in Vietnamese).
+    2. 3 practical examples of how to use this phrase in other common situations. Each example must have an English sentence and its Vietnamese translation.
+
+    Output strictly in this JSON format:
+    {
+        "explanation": "Giải thích ý nghĩa...",
+        "examples": [
+            { "en": "English example 1", "vn": "Vietnamese translation 1" },
+            { "en": "English example 2", "vn": "Vietnamese translation 2" },
+            { "en": "English example 3", "vn": "Vietnamese translation 3" }
+        ]
+    }
+    `;
+
+    try {
+        const response = await retryOperation<GenerateContentResponse>(() => ai.models.generateContent({
+            model: modelId,
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        explanation: { type: Type.STRING },
+                        examples: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    en: { type: Type.STRING },
+                                    vn: { type: Type.STRING }
+                                },
+                                required: ["en", "vn"]
+                            }
+                        }
+                    },
+                    required: ["explanation", "examples"]
+                },
+                temperature: 0.7,
+            }
+        }));
+
+        const jsonText = response.text;
+        if (!jsonText) throw new Error("No explanation generated");
+        return JSON.parse(jsonText);
+    } catch (error) {
+        console.warn("Dictionary Gen Error:", error);
+        return {
+            explanation: "Không thể tạo giải thích lúc này.",
+            examples: []
+        };
     }
 }
 
