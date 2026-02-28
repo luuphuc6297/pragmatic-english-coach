@@ -6,6 +6,7 @@ import {
   Loader2,
   BookmarkPlus,
   CheckCircle,
+  CheckCircle2,
   Languages,
   ChevronDown,
   ChevronUp,
@@ -72,6 +73,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     x: number;
     y: number;
   } | null>(null);
+  const [saveToast, setSaveToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
+
+  const handleSaveItem = (item: SavedItem) => {
+    onSaveItem(item);
+    setSaveToast({ show: true, message: 'Saved to Dictionary' });
+    setTimeout(() => setSaveToast({ show: false, message: '' }), 2000);
+  };
 
   const isStoryWaiting =
     chatMode === 'story' &&
@@ -288,7 +296,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           className={`cursor-pointer border-b-2 ${m.improvement.type === 'grammar' ? 'border-rose-400 bg-rose-50/50 text-rose-700' : 'border-purple-400 bg-purple-50/50 text-purple-700'} px-0.5 rounded transition-all hover:bg-opacity-100 relative group inline-block mx-0.5`}
           onClick={(e) => {
             e.stopPropagation();
-            onSaveItem({
+            handleSaveItem({
               id: Date.now().toString() + i,
               original: m.improvement.original,
               correction: m.improvement.correction,
@@ -338,7 +346,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           <button
             onMouseDown={(e) => {
               e.preventDefault();
-              onSaveItem({
+              handleSaveItem({
                 id: Date.now().toString(),
                 original: selection.text,
                 correction: selection.text,
@@ -494,7 +502,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                         <div className="absolute -bottom-3 right-4 flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={() =>
-                              onSaveItem({
+                              handleSaveItem({
                                 id: Date.now().toString(),
                                 original: msg.content,
                                 correction: msg.content,
@@ -555,7 +563,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   {msg.role === 'assistant' && msg.translation && (
                     <TranslatorResult
                       msg={msg}
-                      onSaveItem={onSaveItem}
+                      onSaveItem={handleSaveItem}
                       onPlayAudio={handlePlayAudio}
                       audioLoadingId={audioLoadingId}
                     />
@@ -569,7 +577,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                       isLastMessage={isLastMessage}
                       isCollapsed={collapsedAssessments.has(msg.id)}
                       onToggleDetails={() => toggleAssessmentDetails(msg.id)}
-                      onSaveItem={onSaveItem}
+                      onSaveItem={handleSaveItem}
                       onNextLesson={onNextLesson}
                       onContinueStory={onContinueStory}
                       onGenerateVideo={handleGenerateVideo}
@@ -602,6 +610,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         isStoryWaiting={isStoryWaiting}
         chatMode={chatMode}
       />
+
+      {/* Save Toast Notification */}
+      {saveToast.show && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="bg-slate-800 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium">
+            <CheckCircle2 size={16} className="text-emerald-400" />
+            {saveToast.message}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

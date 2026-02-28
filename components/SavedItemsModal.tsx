@@ -1,6 +1,6 @@
 import React from 'react';
 import { SavedItem } from '../types';
-import { BookOpen, Trash2, Play, CheckCircle, Info, Loader2 } from 'lucide-react';
+import { BookOpen, Trash2, Play, CheckCircle, Info, Loader2, Clock } from 'lucide-react';
 
 interface SavedItemsModalProps {
   items: SavedItem[];
@@ -95,26 +95,42 @@ const SavedItemCard: React.FC<{
   onDelete: (id: string) => void;
   onPractice: (item: SavedItem) => void;
 }> = ({ item, onDelete, onPractice }) => {
+  const [now] = React.useState(() => Date.now());
+  const isDue = (item.nextReviewDate || 0) <= now;
+  const nextReviewText = isDue 
+    ? "Due for review" 
+    : `Review in ${Math.ceil(((item.nextReviewDate || 0) - now) / (1000 * 60 * 60 * 24))} days`;
+
   return (
-    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
+    <div className={`bg-white p-4 rounded-xl border ${isDue ? 'border-amber-200 shadow-amber-100/50' : 'border-slate-200'} shadow-sm hover:shadow-md transition-all group`}>
       <div className="flex justify-between items-start mb-3">
         <div className="flex items-center gap-2">
-          <span className="px-2 py-1 rounded-md bg-rose-50 text-rose-600 text-xs font-bold line-through decoration-rose-400/50">
-            {item.original}
-          </span>
-          <span className="text-slate-300">→</span>
+          {item.original !== item.correction && (
+            <>
+              <span className="px-2 py-1 rounded-md bg-rose-50 text-rose-600 text-xs font-bold line-through decoration-rose-400/50">
+                {item.original}
+              </span>
+              <span className="text-slate-300">→</span>
+            </>
+          )}
           <span className="px-2 py-1 rounded-md bg-emerald-50 text-emerald-600 text-xs font-bold flex items-center gap-1">
             {item.correction} <CheckCircle size={10} />
           </span>
         </div>
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={() => onDelete(item.id)}
-            className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-            title="Delete"
-          >
-            <Trash2 size={14} />
-          </button>
+        <div className="flex items-center gap-2">
+          <div className={`flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-1 rounded-md ${isDue ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+            <Clock size={10} />
+            {nextReviewText}
+          </div>
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={() => onDelete(item.id)}
+              className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+              title="Delete"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
         </div>
       </div>
 

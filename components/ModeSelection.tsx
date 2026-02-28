@@ -8,6 +8,7 @@ import {
   Clock,
   User,
   RotateCcw,
+  Network,
 } from 'lucide-react';
 import {ChatMode, UserPreferences} from '../types';
 import UserProfile from './UserProfile';
@@ -55,6 +56,16 @@ const MODE_CARDS = [
     iconBg: 'bg-amber-500/20 text-amber-400',
     iconHover: 'group-hover:bg-amber-500',
     ctaColor: 'text-amber-400',
+  },
+  {
+    mode: 'vocab_hub' as ChatMode,
+    icon: Network,
+    title: 'Vocab Hub',
+    description: 'Master vocabulary through morphological breakdown, contextual embedding, and interactive mind maps.',
+    borderHover: 'hover:border-emerald-500',
+    iconBg: 'bg-emerald-500/20 text-emerald-400',
+    iconHover: 'group-hover:bg-emerald-500',
+    ctaColor: 'text-emerald-400',
   },
 ];
 

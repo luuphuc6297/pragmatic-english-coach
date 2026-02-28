@@ -8,6 +8,7 @@ import ConversationHistoryModal from './components/ConversationHistoryModal';
 import ModeSelection from './components/ModeSelection';
 import Sidebar from './components/Sidebar';
 import ContextPanel from './components/ContextPanel';
+import VocabHub from './components/VocabHub';
 import { evaluateResponse, generateNextLesson, generateToneTranslations, generateStoryScenario, evaluateStoryTurn, evaluateQuizAnswer, generateDictionaryExplanation } from './services/geminiService';
 import { Loader2, ArrowLeft, Library } from 'lucide-react';
 
@@ -204,8 +205,16 @@ const App = () => {
 
     const handleSaveItem = async (item: SavedItem) => {
         if (!savedItems.find(i => i.id === item.id)) {
+            // Initialize SR fields
+            const newItem = {
+                ...item,
+                nextReviewDate: Date.now(), // Due immediately
+                interval: 0,
+                easeFactor: 2.5,
+                reviewCount: 0
+            };
             // Optimistically add the item
-            setSavedItems(prev => [item, ...prev]);
+            setSavedItems(prev => [newItem, ...prev]);
 
             if (item.type === 'vocabulary') {
                 // Fetch explanation and examples in the background
@@ -225,6 +234,10 @@ const App = () => {
 
     const handleDeleteItem = (id: string) => {
         setSavedItems(prev => prev.filter(i => i.id !== id));
+    };
+
+    const handleUpdateItem = (updatedItem: SavedItem) => {
+        setSavedItems(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
     };
 
     const handlePracticeItem = async (item: SavedItem) => {
@@ -349,13 +362,26 @@ const App = () => {
                 await triggerStoryGeneration();
             }
         } else if (mode === 'quiz' && isNewSession) {
-            // Start the quiz with a random saved item
-            const randomItem = savedItems[Math.floor(Math.random() * savedItems.length)];
-            setCurrentQuizItem(randomItem);
+            // Start the quiz with an item due for review, or the one with the lowest mastery score
+            const now = Date.now();
+            const dueItems = savedItems.filter(item => (item.nextReviewDate || 0) <= now);
+            
+            let selectedItem;
+            if (dueItems.length > 0) {
+                // Sort by how overdue they are
+                dueItems.sort((a, b) => (a.nextReviewDate || 0) - (b.nextReviewDate || 0));
+                selectedItem = dueItems[0];
+            } else {
+                // Fallback to lowest mastery
+                const sortedByMastery = [...savedItems].sort((a, b) => a.masteryScore - b.masteryScore);
+                selectedItem = sortedByMastery[0];
+            }
+
+            setCurrentQuizItem(selectedItem);
             const quizQuestion: ChatMessage = {
                 id: Date.now().toString(),
                 role: 'assistant',
-                content: `Quiz Time! Let's test your memory.\n\nHow would you correctly say or use this in English?\n\n"${randomItem.original}"\n\n(Hint: It's related to ${randomItem.type})`,
+                content: `Quiz Time! Let's test your memory.\n\nHow would you correctly say or use this in English?\n\n"${selectedItem.original}"\n\n(Hint: It's related to ${selectedItem.type})`,
                 timestamp: Date.now()
             };
             setMessages([quizQuestion]);
@@ -456,10 +482,41 @@ const App = () => {
                 setMessages(prev => [...prev, aiMsg]);
                 setScoreHistory(prev => [...prev, result.score]);
 
-                // Update mastery score
+                // Update mastery score and SR fields
                 setSavedItems(prev => prev.map(item => {
                     if (item.id === currentQuizItem.id) {
-                        return { ...item, masteryScore: Math.min(100, item.masteryScore + (result.score * 10)) };
+                        // Simplified SuperMemo-2 algorithm
+                        const quality = Math.max(0, Math.min(5, Math.floor(result.score / 2)));
+                        
+                        let newInterval = item.interval || 0;
+                        let newReviewCount = (item.reviewCount || 0) + 1;
+                        let newEaseFactor = (item.easeFactor || 2.5) + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
+                        
+                        if (newEaseFactor < 1.3) newEaseFactor = 1.3;
+                        
+                        if (quality < 3) {
+                            newReviewCount = 0;
+                            newInterval = 1; // Reset interval if failed
+                        } else {
+                            if (newReviewCount === 1) {
+                                newInterval = 1;
+                            } else if (newReviewCount === 2) {
+                                newInterval = 6;
+                            } else {
+                                newInterval = Math.round(newInterval * newEaseFactor);
+                            }
+                        }
+                        
+                        const nextReviewDate = Date.now() + newInterval * 24 * 60 * 60 * 1000;
+
+                        return { 
+                            ...item, 
+                            masteryScore: Math.min(100, item.masteryScore + (result.score * 10)),
+                            interval: newInterval,
+                            easeFactor: newEaseFactor,
+                            reviewCount: newReviewCount,
+                            nextReviewDate: nextReviewDate
+                        };
                     }
                     return item;
                 }));
@@ -526,12 +583,23 @@ const App = () => {
         if (chatMode === 'story') {
             await triggerStoryGeneration();
         } else if (chatMode === 'quiz') {
-            const randomItem = savedItems[Math.floor(Math.random() * savedItems.length)];
-            setCurrentQuizItem(randomItem);
+            const now = Date.now();
+            const dueItems = savedItems.filter(item => (item.nextReviewDate || 0) <= now);
+            
+            let selectedItem;
+            if (dueItems.length > 0) {
+                dueItems.sort((a, b) => (a.nextReviewDate || 0) - (b.nextReviewDate || 0));
+                selectedItem = dueItems[0];
+            } else {
+                const sortedByMastery = [...savedItems].sort((a, b) => a.masteryScore - b.masteryScore);
+                selectedItem = sortedByMastery[0];
+            }
+
+            setCurrentQuizItem(selectedItem);
             const quizQuestion: ChatMessage = {
                 id: Date.now().toString(),
                 role: 'assistant',
-                content: `Next Question!\n\nHow would you correctly say or use this in English?\n\n"${randomItem.original}"\n\n(Hint: It's related to ${randomItem.type})`,
+                content: `Next Question!\n\nHow would you correctly say or use this in English?\n\n"${selectedItem.original}"\n\n(Hint: It's related to ${selectedItem.type})`,
                 timestamp: Date.now()
             };
             setMessages(prev => [...prev, quizQuestion]);
@@ -659,7 +727,7 @@ const App = () => {
                 onNextLesson={handleNextLesson}
             />
 
-            {/* RIGHT: Chat Interface */}
+            {/* RIGHT: Chat Interface or Vocab Hub */}
             {/* Takes remaining space (flex-1), effectively ~60% */}
             <div className="flex-1 flex flex-col h-full bg-slate-50">
                 <div className="md:hidden h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 sticky top-0 z-10">
@@ -669,7 +737,7 @@ const App = () => {
                         </button>
                         <div className="flex flex-col">
                             <span className="font-bold text-slate-800 truncate text-sm w-32">
-                                {isGenerating ? 'Loading...' : (chatMode === 'story' ? currentStory?.topic : chatMode === 'roleplay' ? currentLesson?.title : 'Translator')}
+                                {isGenerating ? 'Loading...' : (chatMode === 'story' ? currentStory?.topic : chatMode === 'roleplay' ? currentLesson?.title : chatMode === 'vocab_hub' ? 'Vocab Hub' : 'Translator')}
                             </span>
                             <span className="text-[10px] text-slate-500">Avg: {averageScore}</span>
                         </div>
@@ -681,7 +749,7 @@ const App = () => {
                         >
                             <Library size={20} />
                         </button>
-                        {chatMode !== 'translator' && (
+                        {chatMode !== 'translator' && chatMode !== 'vocab_hub' && (
                             <button
                                 onClick={() => handleNextLesson('same')}
                                 disabled={isGenerating}
@@ -705,25 +773,34 @@ const App = () => {
                 </div>
 
                 <div className="flex-1 overflow-hidden relative">
-                    <ChatInterface
-                        messages={messages}
-                        inputText={inputText}
-                        setInputText={setInputText}
-                        onSend={handleSendMessage}
-                        onUpdateMessage={handleUpdateMessage}
-                        onNextLesson={handleNextLesson}
-                        isLoading={isLoading}
-                        currentSituation={chatMode === 'story' ? currentStory?.situation : currentLesson?.situation}
-                        chatMode={chatMode}
-                        setChatMode={handleStartMode}
-                        onContinueStory={handleContinueStory}
-                        savedItems={savedItems}
-                        onSaveItem={handleSaveItem}
-                        currentLesson={currentLesson}
-                        translationDirection={translationDirection}
-                        onToggleDirection={handleToggleDirection}
-                        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-                    />
+                    {chatMode === 'vocab_hub' ? (
+                        <VocabHub 
+                            userLevel={userPreferences?.level || 'A1-A2'} 
+                            savedItems={savedItems}
+                            onUpdateItem={handleUpdateItem}
+                            onDeleteItem={handleDeleteItem}
+                        />
+                    ) : (
+                        <ChatInterface
+                            messages={messages}
+                            inputText={inputText}
+                            setInputText={setInputText}
+                            onSend={handleSendMessage}
+                            onUpdateMessage={handleUpdateMessage}
+                            onNextLesson={handleNextLesson}
+                            isLoading={isLoading}
+                            currentSituation={chatMode === 'story' ? currentStory?.situation : currentLesson?.situation}
+                            chatMode={chatMode}
+                            setChatMode={handleStartMode}
+                            onContinueStory={handleContinueStory}
+                            savedItems={savedItems}
+                            onSaveItem={handleSaveItem}
+                            currentLesson={currentLesson}
+                            translationDirection={translationDirection}
+                            onToggleDirection={handleToggleDirection}
+                            onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+                        />
+                    )}
                 </div>
             </div>
 

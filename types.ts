@@ -1,6 +1,6 @@
 
 export type CEFRLevel = 'A1-A2' | 'B1-B2' | 'C1-C2';
-export type ChatMode = 'roleplay' | 'translator' | 'story' | 'quiz';
+export type ChatMode = 'roleplay' | 'translator' | 'story' | 'quiz' | 'vocab_hub';
 
 export interface UserPreferences {
   name: string; // Added user name
@@ -55,6 +55,15 @@ export interface SavedItem {
   masteryScore: number; // 0-100
   explanation?: string;
   examples?: { en: string; vn: string }[];
+  
+  // Spaced Repetition fields
+  nextReviewDate?: number; // timestamp
+  interval?: number; // in days
+  easeFactor?: number; // default 2.5
+  reviewCount?: number;
+  
+  // Organization
+  category?: string;
 }
 
 export interface AssessmentResult {

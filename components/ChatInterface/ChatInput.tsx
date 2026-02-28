@@ -1,5 +1,5 @@
 import React from 'react';
-import { Send, Mic } from 'lucide-react';
+import { Send, Mic, Loader2 } from 'lucide-react';
 import { ChatMode } from '../../types';
 
 interface ChatInputProps {
@@ -49,7 +49,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
   return (
     <div className="absolute bottom-0 left-0 w-full bg-white/90 backdrop-blur-xl border-t border-slate-200 px-3 py-3 md:px-4 md:py-4 z-20 transition-all">
       <div className="max-w-4xl mx-auto">
-        <div className={`flex items-center gap-2 bg-slate-100 p-1.5 rounded-[2rem] border border-transparent focus-within:border-slate-200 focus-within:ring-2 focus-within:bg-white transition-all shadow-sm ${RING_CLASSES[chatMode]}`}>
+        <div className={`flex items-center gap-2 bg-slate-100 p-1.5 rounded-[2rem] border border-transparent focus-within:border-slate-200 focus-within:ring-2 focus-within:bg-white transition-all shadow-sm ${RING_CLASSES[chatMode]} ${isLoading ? 'opacity-80' : ''}`}>
           <button
             onClick={onMicClick}
             disabled={isStoryWaiting}
@@ -80,7 +80,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
             disabled={!inputText.trim() || isLoading || isStoryWaiting}
             className={`p-3 text-white rounded-full shadow-md transition-all transform active:scale-95 disabled:opacity-50 disabled:shadow-none disabled:active:scale-100 flex-shrink-0 ${SEND_BUTTON_CLASSES[chatMode]}`}
           >
-            <Send size={20} />
+            {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
           </button>
         </div>
       </div>

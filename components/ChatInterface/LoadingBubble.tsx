@@ -27,7 +27,7 @@ const LoadingBubble: React.FC<LoadingBubbleProps> = ({chatMode}) => {
 
   return (
     <div className="flex w-full justify-start animate-in fade-in zoom-in-95 duration-300">
-      <div className="flex max-w-[85%] flex-row gap-3">
+      <div className="flex max-w-[85%] flex-row gap-3 opacity-90">
         <div
           className={`flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center mt-1 animate-pulse ${avatarColorClass}`}
         >

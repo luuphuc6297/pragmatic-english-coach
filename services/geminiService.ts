@@ -803,6 +803,209 @@ export const generateDictionaryExplanation = async (
   }
 };
 
+export interface WordAnalysis {
+  word: string;
+  phonetic: string;
+  translation: string;
+  morphology: {
+    prefix?: { morpheme: string; meaning: string };
+    root: { morpheme: string; meaning: string; origin: string };
+    suffix?: { morpheme: string; meaning: string };
+    equation: string;
+  };
+  contextualEmbedding: {
+    positiveExample: { en: string; vn: string };
+    negativeExample: { en: string; vn: string };
+    collocations: string[];
+  };
+  derivatives: {
+    noun?: string;
+    verb?: string;
+    adjective?: string;
+    adverb?: string;
+  };
+  synonyms: string[];
+  antonyms: string[];
+}
+
+export const generateWordAnalysis = async (word: string, context?: string): Promise<WordAnalysis> => {
+  const modelId = 'gemini-3-flash-preview';
+  const prompt = `
+    You are an expert linguist and etymologist. Analyze the English word "${word}".
+    ${context ? `Context: "${context}"` : ''}
+    
+    Provide a comprehensive morphological breakdown and contextual analysis.
+    
+    Instructions:
+    1. Provide the phonetic transcription (IPA).
+    2. Provide the Vietnamese translation.
+    3. Break down the word into its morphological components (prefix, root, suffix). If a component doesn't exist, omit it.
+       - Provide the morpheme, its meaning, and for the root, its origin (e.g., Latin, Greek).
+       - Create an equation (e.g., "sym- + path + -y = sympathy").
+    4. Provide two example sentences (one positive context, one negative context) with Vietnamese translations.
+    5. List 3 common collocations (words that frequently go with this word).
+    6. Provide its derivatives (word family) for noun, verb, adjective, and adverb forms if they exist.
+    7. List 3 synonyms and 3 antonyms.
+    
+    Output strictly in JSON format matching the requested structure.
+  `;
+
+  const schema: Schema = {
+    type: Type.OBJECT,
+    properties: {
+      word: { type: Type.STRING },
+      phonetic: { type: Type.STRING },
+      translation: { type: Type.STRING },
+      morphology: {
+        type: Type.OBJECT,
+        properties: {
+          prefix: {
+            type: Type.OBJECT,
+            properties: { morpheme: { type: Type.STRING }, meaning: { type: Type.STRING } },
+            required: ['morpheme', 'meaning']
+          },
+          root: {
+            type: Type.OBJECT,
+            properties: { morpheme: { type: Type.STRING }, meaning: { type: Type.STRING }, origin: { type: Type.STRING } },
+            required: ['morpheme', 'meaning', 'origin']
+          },
+          suffix: {
+            type: Type.OBJECT,
+            properties: { morpheme: { type: Type.STRING }, meaning: { type: Type.STRING } },
+            required: ['morpheme', 'meaning']
+          },
+          equation: { type: Type.STRING }
+        },
+        required: ['root', 'equation']
+      },
+      contextualEmbedding: {
+        type: Type.OBJECT,
+        properties: {
+          positiveExample: {
+            type: Type.OBJECT,
+            properties: { en: { type: Type.STRING }, vn: { type: Type.STRING } },
+            required: ['en', 'vn']
+          },
+          negativeExample: {
+            type: Type.OBJECT,
+            properties: { en: { type: Type.STRING }, vn: { type: Type.STRING } },
+            required: ['en', 'vn']
+          },
+          collocations: { type: Type.ARRAY, items: { type: Type.STRING } }
+        },
+        required: ['positiveExample', 'negativeExample', 'collocations']
+      },
+      derivatives: {
+        type: Type.OBJECT,
+        properties: {
+          noun: { type: Type.STRING },
+          verb: { type: Type.STRING },
+          adjective: { type: Type.STRING },
+          adverb: { type: Type.STRING }
+        }
+      },
+      synonyms: { type: Type.ARRAY, items: { type: Type.STRING } },
+      antonyms: { type: Type.ARRAY, items: { type: Type.STRING } }
+    },
+    required: ['word', 'phonetic', 'translation', 'morphology', 'contextualEmbedding', 'derivatives', 'synonyms', 'antonyms']
+  };
+
+  try {
+    const response = await retryOperation<GenerateContentResponse>(() =>
+      ai.models.generateContent({
+        model: modelId,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: schema,
+          temperature: 0.2,
+        },
+      })
+    );
+
+    const jsonText = response.text;
+    if (!jsonText) throw new Error('No analysis generated');
+    return JSON.parse(jsonText) as WordAnalysis;
+  } catch (error) {
+    console.error('Word Analysis Error:', error);
+    throw error;
+  }
+};
+
+export interface MindMapNode {
+  id: string;
+  label: string;
+  type: 'topic' | 'category' | 'word';
+  children?: MindMapNode[];
+}
+
+export const generateTopicMindMap = async (topic: string, level: CEFRLevel): Promise<MindMapNode> => {
+  const modelId = 'gemini-3-flash-preview';
+  const prompt = `
+    Create a vocabulary mind map for the topic "${topic}" at the ${level} level.
+    The root node should be the topic itself.
+    It should have 3-4 main categories (branches).
+    Each category should have 3-5 specific vocabulary words (leaves).
+    
+    Output strictly in JSON format matching the requested structure.
+  `;
+
+  const schema: Schema = {
+    type: Type.OBJECT,
+    properties: {
+      id: { type: Type.STRING },
+      label: { type: Type.STRING },
+      type: { type: Type.STRING, enum: ['topic', 'category', 'word'] },
+      children: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            id: { type: Type.STRING },
+            label: { type: Type.STRING },
+            type: { type: Type.STRING, enum: ['topic', 'category', 'word'] },
+            children: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.STRING },
+                  label: { type: Type.STRING },
+                  type: { type: Type.STRING, enum: ['topic', 'category', 'word'] }
+                },
+                required: ['id', 'label', 'type']
+              }
+            }
+          },
+          required: ['id', 'label', 'type', 'children']
+        }
+      }
+    },
+    required: ['id', 'label', 'type', 'children']
+  };
+
+  try {
+    const response = await retryOperation<GenerateContentResponse>(() =>
+      ai.models.generateContent({
+        model: modelId,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: schema,
+          temperature: 0.7,
+        },
+      })
+    );
+
+    const jsonText = response.text;
+    if (!jsonText) throw new Error('No mind map generated');
+    return JSON.parse(jsonText) as MindMapNode;
+  } catch (error) {
+    console.error('Mind Map Generation Error:', error);
+    throw error;
+  }
+};
+
 export const generateNativeSpeech = async (text: string): Promise<string> => {
   const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
   try {
