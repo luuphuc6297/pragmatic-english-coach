@@ -1,5 +1,5 @@
 import React from 'react';
-import { ConversationHistory, ChatMessage } from '../types';
+import { ConversationHistory } from '../types';
 import { X, Clock, MessageSquare, Trash2 } from 'lucide-react';
 
 interface ConversationHistoryModalProps {
@@ -13,7 +13,7 @@ const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> = ({ his
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        
+
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
@@ -36,18 +36,17 @@ const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> = ({ his
           ) : (
             <div className="space-y-4">
               {history.map((item) => (
-                <div 
-                  key={item.id} 
+                <div
+                  key={item.id}
                   className="bg-white border border-slate-200 rounded-2xl p-4 hover:border-brand-300 hover:shadow-md transition-all group flex items-start justify-between cursor-pointer"
                   onClick={() => onSelect(item)}
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                        item.mode === 'roleplay' ? 'bg-emerald-100 text-emerald-700' :
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${item.mode === 'roleplay' ? 'bg-emerald-100 text-emerald-700' :
                         item.mode === 'story' ? 'bg-purple-100 text-purple-700' :
-                        'bg-blue-100 text-blue-700'
-                      }`}>
+                          'bg-blue-100 text-blue-700'
+                        }`}>
                         {item.mode}
                       </span>
                       <span className="text-xs text-slate-400 font-medium">
@@ -59,7 +58,7 @@ const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> = ({ his
                       {item.messages.length} messages
                     </p>
                   </div>
-                  <button 
+                  <button
                     onClick={(e) => {
                       e.stopPropagation();
                       onDelete(item.id);

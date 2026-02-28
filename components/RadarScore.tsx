@@ -1,12 +1,19 @@
 import React from 'react';
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
-import { AssessmentResult } from '../types';
+import {
+  Radar,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  ResponsiveContainer,
+} from 'recharts';
+import {AssessmentResult} from '../types';
 
 interface RadarScoreProps {
   assessment: AssessmentResult;
 }
 
-const RadarScore: React.FC<RadarScoreProps> = ({ assessment }) => {
+const RadarScore: React.FC<RadarScoreProps> = ({assessment}) => {
   const data = [
     {
       subject: 'Accuracy',
@@ -32,7 +39,10 @@ const RadarScore: React.FC<RadarScoreProps> = ({ assessment }) => {
       <ResponsiveContainer width="100%" height="100%">
         <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
           <PolarGrid stroke="#e2e8f0" />
-          <PolarAngleAxis dataKey="subject" tick={{ fill: '#475569', fontSize: 10, fontWeight: 'bold' }} />
+          <PolarAngleAxis
+            dataKey="subject"
+            tick={{fill: '#475569', fontSize: 10, fontWeight: 'bold'}}
+          />
           <PolarRadiusAxis angle={30} domain={[0, 10]} tick={false} axisLine={false} />
           <Radar
             name="Skill"
