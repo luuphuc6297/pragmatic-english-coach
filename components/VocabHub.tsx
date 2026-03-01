@@ -3,6 +3,7 @@ import { Search, Loader2, Network, BookOpen, Volume2, Plus, ArrowRight, X, Libra
 import { CEFRLevel, SavedItem } from '../types';
 import { generateWordAnalysis, WordAnalysis, generateTopicMindMap, MindMapNode } from '../services/geminiService';
 import * as d3 from 'd3';
+import VocabPractice from './VocabPractice';
 
 interface VocabHubProps {
   userLevel: CEFRLevel;
@@ -12,7 +13,7 @@ interface VocabHubProps {
 }
 
 const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem, onDeleteItem }) => {
-  const [activeTab, setActiveTab] = useState<'analysis' | 'mindmap' | 'saved'>('analysis');
+  const [activeTab, setActiveTab] = useState<'analysis' | 'mindmap' | 'saved' | 'practice'>('analysis');
   
   // Analysis State
   const [searchWord, setSearchWord] = useState('');
@@ -219,6 +220,17 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
           <span className="ml-1 bg-slate-100 text-slate-600 py-0.5 px-2 rounded-full text-xs">
             {savedItems.length}
           </span>
+        </button>
+        <button
+          onClick={() => setActiveTab('practice')}
+          className={`flex items-center gap-2 px-4 py-3 font-medium text-sm border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === 'practice' 
+              ? 'border-emerald-500 text-emerald-600' 
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <BookOpen size={18} />
+          Practice
         </button>
       </div>
 
@@ -556,6 +568,10 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === 'practice' && (
+          <VocabPractice savedItems={savedItems} />
         )}
       </div>
     </div>

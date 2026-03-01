@@ -5,6 +5,8 @@ import {
   CEFRLevel,
   TranslationResult,
   StoryScenario,
+  Exercise,
+  SavedItem,
 } from '../types';
 
 // Declare window.aistudio types for Veo key selection
@@ -1029,5 +1031,70 @@ export const generateNativeSpeech = async (text: string): Promise<string> => {
   } catch (e) {
     console.warn('TTS Error (Quota):', e);
     throw e;
+  }
+};
+
+export const generateExercises = async (savedItems: SavedItem[], count: number = 5): Promise<Exercise[]> => {
+  if (!savedItems || savedItems.length === 0) return [];
+  
+  const modelId = 'gemini-3-flash-preview';
+  
+  // Select random items to test
+  const shuffled = [...savedItems].sort(() => 0.5 - Math.random());
+  const selectedItems = shuffled.slice(0, count);
+  
+  const vocabList = selectedItems.map(item => ({
+    word: item.correction,
+    context: item.context || item.original
+  }));
+
+  const prompt = `
+    Create ${selectedItems.length} interactive exercises based on this vocabulary list:
+    ${JSON.stringify(vocabList, null, 2)}
+    
+    For each word, create either a 'fill-in-the-blank' or 'sentence-construction' exercise.
+    - For 'fill-in-the-blank', provide a sentence with the target word missing (use "___"), 4 options (including the correct one), and the correct answer.
+    - For 'sentence-construction', provide a prompt or a scenario where the user needs to use the target word, and provide a sample correct answer.
+    
+    Include a helpful hint and a brief explanation of why the answer is correct or how the word is used.
+  `;
+
+  const schema: Schema = {
+    type: Type.ARRAY,
+    items: {
+      type: Type.OBJECT,
+      properties: {
+        id: { type: Type.STRING },
+        type: { type: Type.STRING, enum: ['fill-in-the-blank', 'sentence-construction'] },
+        question: { type: Type.STRING },
+        options: { type: Type.ARRAY, items: { type: Type.STRING } },
+        answer: { type: Type.STRING },
+        hint: { type: Type.STRING },
+        explanation: { type: Type.STRING },
+        targetWord: { type: Type.STRING }
+      },
+      required: ['id', 'type', 'question', 'answer', 'explanation', 'targetWord']
+    }
+  };
+
+  try {
+    const response = await retryOperation<GenerateContentResponse>(() =>
+      ai.models.generateContent({
+        model: modelId,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: schema,
+          temperature: 0.7,
+        },
+      })
+    );
+
+    const jsonText = response.text;
+    if (!jsonText) throw new Error('No exercises generated');
+    return JSON.parse(jsonText) as Exercise[];
+  } catch (error) {
+    console.error('Exercise Generation Error:', error);
+    throw error;
   }
 };
