@@ -13,8 +13,9 @@ import {
   MapPin,
   ArrowRightLeft,
   Sparkles,
+  Users,
 } from 'lucide-react';
-import {ChatMode, LessonContext, StoryScenario} from '../types';
+import {ChatMode, LessonContext, StoryScenario, PracticeDialogue, CEFRLevel} from '../types';
 import ProgressiveHint from './ProgressiveHint';
 import {getTopicConfig, getDifficultyColor} from '../utils/topicConfig';
 
@@ -22,6 +23,7 @@ interface ContextPanelProps {
   chatMode: ChatMode;
   currentLesson: LessonContext | null;
   currentStory: StoryScenario | null;
+  currentDialogue?: PracticeDialogue | null;
   safeIndex: number;
   isCurrentLessonCompleted: boolean;
   translationDirection: 'VN_to_EN' | 'EN_to_VN';
@@ -44,6 +46,7 @@ const ContextPanel: React.FC<ContextPanelProps> = ({
   chatMode,
   currentLesson,
   currentStory,
+  currentDialogue,
   safeIndex,
   isCurrentLessonCompleted,
   translationDirection,
@@ -210,6 +213,39 @@ const ContextPanel: React.FC<ContextPanelProps> = ({
                 </span>
               </div>
             </div>
+          ) : chatMode === 'dialogues' && currentDialogue ? (
+            <div className="relative z-10">
+              <div className="flex items-start justify-between mb-4">
+                <div
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-500/30 bg-blue-900/20`}
+                >
+                  <Users size={16} className="text-blue-400" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-blue-400">
+                    Practice
+                  </span>
+                </div>
+
+                <div
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg shadow-lg ${getDifficultyColor(currentDialogue.difficulty as CEFRLevel)}`}
+                >
+                  <Zap size={12} fill="currentColor" />
+                  <span className="text-[10px] font-black">{currentDialogue.difficulty}</span>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <h2 className="text-2xl font-black text-white leading-tight tracking-tight line-clamp-2">
+                  {currentDialogue.title}
+                </h2>
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-slate-700/50">
+                <span className="text-slate-400 text-xs font-medium flex items-center gap-1.5">
+                  <MessageSquareQuote size={14} />
+                  Dialogue Practice
+                </span>
+              </div>
+            </div>
           ) : (
             <div className="relative z-10 flex flex-col gap-4">
               <div className="flex items-center gap-3">
@@ -265,6 +301,32 @@ const ContextPanel: React.FC<ContextPanelProps> = ({
                 onRequestHint={onRequestHint}
                 onResetHint={onResetHint}
               />
+            </div>
+          </>
+        )}
+
+        {chatMode === 'dialogues' && currentDialogue && (
+          <>
+            <div className="shrink-0">
+              <div className="flex items-center gap-2 mb-2">
+                <h2 className="text-blue-400 text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                  <MapPin size={12} /> The Scenario
+                </h2>
+              </div>
+              <p className="text-slate-200 text-lg font-light leading-relaxed">
+                {currentDialogue.scenario}
+              </p>
+            </div>
+
+            <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700 relative overflow-hidden flex flex-col gap-4">
+              <div>
+                <h3 className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-1">Your Role</h3>
+                <p className="text-slate-200">{currentDialogue.roles.user}</p>
+              </div>
+              <div>
+                <h3 className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-1">AI Role</h3>
+                <p className="text-slate-200">{currentDialogue.roles.ai}</p>
+              </div>
             </div>
           </>
         )}

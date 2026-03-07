@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { SavedItem } from '../types';
-import { BookOpen, Trash2, Play, CheckCircle, Info, Loader2, Clock } from 'lucide-react';
+import { BookOpen, Trash2, Play, CheckCircle, Info, Loader2, Clock, Tag } from 'lucide-react';
 
 interface SavedItemsModalProps {
   items: SavedItem[];
@@ -10,10 +10,47 @@ interface SavedItemsModalProps {
 }
 
 const SavedItemsModal: React.FC<SavedItemsModalProps> = ({ items, onClose, onDelete, onPractice }) => {
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [selectedPOS, setSelectedPOS] = useState<string>('All');
+
+  const POS_OPTIONS = [
+    'Noun (Danh từ)',
+    'Verb (Động từ)',
+    'Adjective (Tính từ)',
+    'Adverb (Trạng từ)',
+    'Phrasal Verb (Cụm động từ)',
+    'Idiom (Thành ngữ)',
+    'Expression (Cụm từ)',
+    'Other (Khác)'
+  ];
+
+  // Extract unique categories
+  const categories = useMemo(() => {
+    const cats = new Set(items.map(item => item.category).filter(Boolean) as string[]);
+    return ['All', 'Uncategorized', ...Array.from(cats)];
+  }, [items]);
+
+  const filteredItems = useMemo(() => {
+    let result = items;
+    
+    if (selectedCategory !== 'All') {
+      if (selectedCategory === 'Uncategorized') {
+        result = result.filter(item => !item.category);
+      } else {
+        result = result.filter(item => item.category === selectedCategory);
+      }
+    }
+
+    if (selectedPOS !== 'All') {
+      result = result.filter(item => item.partOfSpeech === selectedPOS);
+    }
+
+    return result;
+  }, [items, selectedCategory, selectedPOS]);
 
   // Group items by type
-  const grammarItems = items.filter(i => i.type === 'grammar');
-  const vocabItems = items.filter(i => i.type === 'vocabulary');
+  const grammarItems = filteredItems.filter(i => i.type === 'grammar');
+  const vocabItems = filteredItems.filter(i => i.type === 'vocabulary');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -37,7 +74,50 @@ const SavedItemsModal: React.FC<SavedItemsModalProps> = ({ items, onClose, onDel
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
-          {items.length === 0 ? (
+          {/* Filters */}
+          {items.length > 0 && (
+            <div className="flex flex-col gap-4 mb-6">
+              <div>
+                <h4 className="text-xs font-bold text-slate-400 uppercase mb-2">Categories</h4>
+                <div className="flex flex-wrap gap-2">
+                  {categories.map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setSelectedCategory(cat)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-colors ${
+                        selectedCategory === cat
+                          ? 'bg-brand-500 text-white shadow-sm'
+                          : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-bold text-slate-400 uppercase mb-2">Part of Speech</h4>
+                <div className="flex flex-wrap gap-2">
+                  {['All', ...POS_OPTIONS].map((pos) => (
+                    <button
+                      key={pos}
+                      onClick={() => setSelectedPOS(pos)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-colors ${
+                        selectedPOS === pos
+                          ? 'bg-purple-500 text-white shadow-sm'
+                          : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {pos}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {filteredItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-slate-400">
               <BookOpen size={48} className="mb-4 opacity-20" />
               <p>No saved items yet.</p>
@@ -116,6 +196,11 @@ const SavedItemCard: React.FC<{
           <span className="px-2 py-1 rounded-md bg-emerald-50 text-emerald-600 text-xs font-bold flex items-center gap-1">
             {item.correction} <CheckCircle size={10} />
           </span>
+          {item.partOfSpeech && (
+            <span className="px-2 py-1 rounded-md bg-purple-50 text-purple-600 text-[10px] font-bold uppercase tracking-wider">
+              {item.partOfSpeech}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <div className={`flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-1 rounded-md ${isDue ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
@@ -171,14 +256,20 @@ const SavedItemCard: React.FC<{
       )}
 
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="h-1.5 w-24 bg-slate-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-brand-500 rounded-full transition-all"
-              style={{ width: `${item.masteryScore}%` }}
-            />
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-24 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-brand-500 rounded-full transition-all"
+                style={{ width: `${item.masteryScore}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-slate-400 font-bold uppercase">Mastery</span>
           </div>
-          <span className="text-[10px] text-slate-400 font-bold uppercase">Mastery</span>
+          <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-100 px-2 py-1 rounded-md">
+            <Tag size={10} />
+            {item.category || 'Uncategorized'}
+          </div>
         </div>
 
         <button

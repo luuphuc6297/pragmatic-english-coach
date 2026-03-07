@@ -1,8 +1,21 @@
 
 export type CEFRLevel = 'A1-A2' | 'B1-B2' | 'C1-C2';
-export type ChatMode = 'roleplay' | 'translator' | 'story' | 'quiz' | 'vocab_hub';
+export type ChatMode = 'roleplay' | 'translator' | 'story' | 'quiz' | 'vocab_hub' | 'dialogues';
 
 export type ExerciseType = 'fill-in-the-blank' | 'sentence-construction';
+
+export interface PracticeDialogue {
+  id: string;
+  title: string;
+  description: string;
+  difficulty: CEFRLevel;
+  roles: {
+    user: string;
+    ai: string;
+  };
+  scenario: string;
+  startingLine: string;
+}
 
 export interface Exercise {
   id: string;
@@ -68,6 +81,7 @@ export interface SavedItem {
   masteryScore: number; // 0-100
   explanation?: string;
   examples?: { en: string; vn: string }[];
+  partOfSpeech?: string; // e.g., Noun, Verb, Adjective, Phrasal Verb, etc.
   
   // Spaced Repetition fields
   nextReviewDate?: number; // timestamp
@@ -118,7 +132,7 @@ export interface ConversationHistory {
   timestamp: number;
   title: string;
   messages: ChatMessage[];
-  context?: LessonContext | StoryScenario;
+  context?: LessonContext | StoryScenario | PracticeDialogue;
 }
 
 export interface ChatMessage {

@@ -9,6 +9,7 @@ import {
   User,
   RotateCcw,
   Network,
+  Users
 } from 'lucide-react';
 import {ChatMode, UserPreferences} from '../types';
 import UserProfile from './UserProfile';
@@ -24,6 +25,17 @@ const MODE_CARDS = [
     iconBg: 'bg-brand-500/20 text-brand-400',
     iconHover: 'group-hover:bg-brand-500',
     ctaColor: 'text-brand-400',
+  },
+  {
+    mode: 'dialogues' as ChatMode,
+    icon: Users,
+    title: 'Practice Dialogues',
+    description:
+      'Choose from predefined scenarios and roleplay a full conversation with the AI.',
+    borderHover: 'hover:border-blue-500',
+    iconBg: 'bg-blue-500/20 text-blue-400',
+    iconHover: 'group-hover:bg-blue-500',
+    ctaColor: 'text-blue-400',
   },
   {
     mode: 'story' as ChatMode,

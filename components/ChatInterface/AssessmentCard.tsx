@@ -401,6 +401,18 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
             </div>
           )}
 
+          {/* Dialogues End Option */}
+          {chatMode === 'dialogues' && isLastMessage && (
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => onNextLesson('same')}
+                className="w-full py-3 bg-white text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-xl text-xs font-bold border border-slate-200 transition-colors"
+              >
+                End & Choose Another Dialogue
+              </button>
+            </div>
+          )}
+
           {/* Quiz Next Option */}
           {chatMode === 'quiz' && isLastMessage && (
             <div className="flex flex-col gap-3">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ChatMessage, LessonContext, UserPreferences, CEFRLevel, ChatMode, StoryScenario, SavedItem, ConversationHistory } from './types';
+import { ChatMessage, LessonContext, UserPreferences, CEFRLevel, ChatMode, StoryScenario, SavedItem, ConversationHistory, PracticeDialogue } from './types';
 import ChatInterface from './components/ChatInterface';
 import Onboarding from './components/Onboarding';
 import UserProfile from './components/UserProfile';
@@ -9,7 +9,8 @@ import ModeSelection from './components/ModeSelection';
 import Sidebar from './components/Sidebar';
 import ContextPanel from './components/ContextPanel';
 import VocabHub from './components/VocabHub';
-import { evaluateResponse, generateNextLesson, generateToneTranslations, generateStoryScenario, evaluateStoryTurn, evaluateQuizAnswer, generateDictionaryExplanation } from './services/geminiService';
+import DialogueList from './components/DialogueList';
+import { evaluateResponse, generateNextLesson, generateToneTranslations, generateStoryScenario, evaluateStoryTurn, evaluateQuizAnswer, generateDictionaryExplanation, evaluateDialogueTurn } from './services/geminiService';
 import { Loader2, ArrowLeft, Library } from 'lucide-react';
 
 const App = () => {
@@ -56,6 +57,7 @@ const App = () => {
     const [generatedLessons, setGeneratedLessons] = useState<LessonContext[]>(initialSession?.generatedLessons || []);
     const [currentStory, setCurrentStory] = useState<StoryScenario | null>(initialSession?.currentStory || null);
     const [currentQuizItem, setCurrentQuizItem] = useState<SavedItem | null>(initialSession?.currentQuizItem || null);
+    const [currentDialogue, setCurrentDialogue] = useState<PracticeDialogue | null>(initialSession?.currentDialogue || null);
 
     const [messages, setMessages] = useState<ChatMessage[]>(initialSession?.messages || []);
     const [inputText, setInputText] = useState('');
@@ -115,6 +117,7 @@ const App = () => {
             generatedLessons,
             currentStory,
             currentQuizItem,
+            currentDialogue,
             messages,
             hintLevel,
             chatMode,
@@ -129,6 +132,7 @@ const App = () => {
         generatedLessons,
         currentStory,
         currentQuizItem,
+        currentDialogue,
         messages,
         hintLevel,
         chatMode,
@@ -143,7 +147,7 @@ const App = () => {
                 const existingIndex = prev.findIndex(h => h.id === currentConversationId);
 
                 let title = 'Conversation';
-                let context: LessonContext | StoryScenario | undefined = undefined;
+                let context: LessonContext | StoryScenario | PracticeDialogue | undefined = undefined;
 
                 if (chatMode === 'roleplay' && currentLesson) {
                     title = currentLesson.title;
@@ -151,6 +155,9 @@ const App = () => {
                 } else if (chatMode === 'story' && currentStory) {
                     title = `Story: ${currentStory.topic}`;
                     context = currentStory;
+                } else if (chatMode === 'dialogues' && currentDialogue) {
+                    title = `Dialogue: ${currentDialogue.title}`;
+                    context = currentDialogue;
                 } else if (chatMode === 'translator') {
                     title = 'Translation Session';
                 }
@@ -222,7 +229,7 @@ const App = () => {
                     const dictData = await generateDictionaryExplanation(item.correction, item.context);
                     setSavedItems(prev => prev.map(i =>
                         i.id === item.id
-                            ? { ...i, explanation: dictData.explanation, examples: dictData.examples }
+                            ? { ...i, explanation: dictData.explanation, examples: dictData.examples, partOfSpeech: dictData.partOfSpeech }
                             : i
                     ));
                 } catch (error) {
@@ -343,6 +350,9 @@ const App = () => {
         if (isNewSession) {
             setMessages([]);
             setCurrentConversationId(Date.now().toString());
+            if (mode === 'dialogues') {
+                setCurrentDialogue(null);
+            }
         }
         setInputText('');
         setHintLevel(0);
@@ -405,6 +415,7 @@ const App = () => {
         setGeneratedLessons([]);
         setTempDifficultyOverride(null);
         setCurrentStory(null);
+        setCurrentDialogue(null);
         setCompletedLessons(new Set());
         setScoreHistory([]);
         setUserPreferences(null);
@@ -415,6 +426,18 @@ const App = () => {
 
     const handleToggleDirection = () => {
         setTranslationDirection(prev => prev === 'VN_to_EN' ? 'EN_to_VN' : 'VN_to_EN');
+    };
+
+    const handleSelectDialogue = (dialogue: PracticeDialogue) => {
+        setCurrentDialogue(dialogue);
+        setCurrentConversationId(Date.now().toString());
+        const openingMsg: ChatMessage = {
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: dialogue.startingLine,
+            timestamp: Date.now()
+        };
+        setMessages([openingMsg]);
     };
 
     const handleContinueStory = (nextReply: string, nextReplyVietnamese?: string) => {
@@ -462,6 +485,21 @@ const App = () => {
                     id: (Date.now() + 1).toString(),
                     role: 'assistant',
                     content: "",
+                    assessment: result,
+                    timestamp: Date.now(),
+                };
+                setMessages(prev => [...prev, aiMsg]);
+                setScoreHistory(prev => [...prev, result.score]);
+
+            } else if (chatMode === 'dialogues') {
+                if (!currentDialogue) return;
+                const lastAgentMsg = messages.filter(m => m.role === 'assistant').pop()?.content || currentDialogue.startingLine;
+                const result = await evaluateDialogueTurn(currentDialogue, lastAgentMsg, userMsg.content);
+
+                const aiMsg: ChatMessage = {
+                    id: (Date.now() + 1).toString(),
+                    role: 'assistant',
+                    content: result.nextAgentReply || "Here is my evaluation:",
                     assessment: result,
                     timestamp: Date.now(),
                 };
@@ -582,6 +620,10 @@ const App = () => {
 
         if (chatMode === 'story') {
             await triggerStoryGeneration();
+        } else if (chatMode === 'dialogues') {
+            setCurrentDialogue(null);
+            // Remove the separator message since we are going back to the list
+            setMessages(prev => prev.filter(m => m.id !== separatorMsg.id));
         } else if (chatMode === 'quiz') {
             const now = Date.now();
             const dueItems = savedItems.filter(item => (item.nextReviewDate || 0) <= now);
@@ -634,6 +676,8 @@ const App = () => {
             setCurrentLessonIndex(existingIndex >= 0 ? existingIndex : generatedLessons.length);
         } else if (item.mode === 'story' && item.context) {
             setCurrentStory(item.context as StoryScenario);
+        } else if (item.mode === 'dialogues' && item.context) {
+            setCurrentDialogue(item.context as PracticeDialogue);
         }
         setSessionStarted(true);
     };
@@ -709,6 +753,7 @@ const App = () => {
                 chatMode={chatMode}
                 currentLesson={currentLesson}
                 currentStory={currentStory}
+                currentDialogue={currentDialogue}
                 safeIndex={safeIndex}
                 isCurrentLessonCompleted={currentLesson ? completedLessons.has(currentLesson.id) : false}
                 translationDirection={translationDirection}
@@ -737,7 +782,7 @@ const App = () => {
                         </button>
                         <div className="flex flex-col">
                             <span className="font-bold text-slate-800 truncate text-sm w-32">
-                                {isGenerating ? 'Loading...' : (chatMode === 'story' ? currentStory?.topic : chatMode === 'roleplay' ? currentLesson?.title : chatMode === 'vocab_hub' ? 'Vocab Hub' : 'Translator')}
+                                {isGenerating ? 'Loading...' : (chatMode === 'story' ? currentStory?.topic : chatMode === 'roleplay' ? currentLesson?.title : chatMode === 'vocab_hub' ? 'Vocab Hub' : chatMode === 'dialogues' ? currentDialogue?.title || 'Practice Dialogues' : 'Translator')}
                             </span>
                             <span className="text-[10px] text-slate-500">Avg: {averageScore}</span>
                         </div>
@@ -780,6 +825,11 @@ const App = () => {
                             onUpdateItem={handleUpdateItem}
                             onDeleteItem={handleDeleteItem}
                         />
+                    ) : chatMode === 'dialogues' && !currentDialogue ? (
+                        <DialogueList 
+                            onSelect={handleSelectDialogue}
+                            onBack={() => setSessionStarted(false)}
+                        />
                     ) : (
                         <ChatInterface
                             messages={messages}
@@ -789,7 +839,7 @@ const App = () => {
                             onUpdateMessage={handleUpdateMessage}
                             onNextLesson={handleNextLesson}
                             isLoading={isLoading}
-                            currentSituation={chatMode === 'story' ? currentStory?.situation : currentLesson?.situation}
+                            currentSituation={chatMode === 'story' ? currentStory?.situation : chatMode === 'dialogues' ? currentDialogue?.scenario : currentLesson?.situation}
                             chatMode={chatMode}
                             setChatMode={handleStartMode}
                             onContinueStory={handleContinueStory}

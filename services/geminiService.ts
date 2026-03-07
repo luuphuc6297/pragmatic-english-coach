@@ -7,6 +7,7 @@ import {
   StoryScenario,
   Exercise,
   SavedItem,
+  PracticeDialogue
 } from '../types';
 
 // Declare window.aistudio types for Veo key selection
@@ -742,18 +743,20 @@ export const generateScenarioVideo = async (situation: string, phrase: string): 
 export const generateDictionaryExplanation = async (
   phrase: string,
   context: string,
-): Promise<{explanation: string; examples: {en: string; vn: string}[]}> => {
+): Promise<{explanation: string; examples: {en: string; vn: string}[]; partOfSpeech: string}> => {
   const modelId = 'gemini-3-flash-preview';
   const prompt = `
     You are an expert English teacher. The user wants to save the phrase/word "${phrase}" from the following context:
     "${context}"
 
     Please provide:
-    1. A clear, concise explanation of what this phrase means in this specific context (in Vietnamese).
-    2. 3 practical examples of how to use this phrase in other common situations. Each example must have an English sentence and its Vietnamese translation.
+    1. The part of speech of this phrase/word in this context. You MUST choose EXACTLY ONE from this list: "Noun (Danh từ)", "Verb (Động từ)", "Adjective (Tính từ)", "Adverb (Trạng từ)", "Phrasal Verb (Cụm động từ)", "Idiom (Thành ngữ)", "Expression (Cụm từ)", "Other (Khác)".
+    2. A clear, concise explanation of what this phrase means in this specific context (in Vietnamese).
+    3. 3 practical examples of how to use this phrase in other common situations. Each example must have an English sentence and its Vietnamese translation.
 
     Output strictly in this JSON format:
     {
+        "partOfSpeech": "One of the exact options above",
         "explanation": "Giải thích ý nghĩa...",
         "examples": [
             { "en": "English example 1", "vn": "Vietnamese translation 1" },
@@ -773,6 +776,7 @@ export const generateDictionaryExplanation = async (
           responseSchema: {
             type: Type.OBJECT,
             properties: {
+              partOfSpeech: {type: Type.STRING},
               explanation: {type: Type.STRING},
               examples: {
                 type: Type.ARRAY,
@@ -786,7 +790,7 @@ export const generateDictionaryExplanation = async (
                 },
               },
             },
-            required: ['explanation', 'examples'],
+            required: ['partOfSpeech', 'explanation', 'examples'],
           },
           temperature: 0.7,
         },
@@ -799,6 +803,7 @@ export const generateDictionaryExplanation = async (
   } catch (error) {
     console.warn('Dictionary Gen Error:', error);
     return {
+      partOfSpeech: 'Unknown',
       explanation: 'Không thể tạo giải thích lúc này.',
       examples: [],
     };
@@ -1096,5 +1101,51 @@ export const generateExercises = async (savedItems: SavedItem[], count: number =
   } catch (error) {
     console.error('Exercise Generation Error:', error);
     throw error;
+  }
+};
+
+export const evaluateDialogueTurn = async (
+  dialogue: PracticeDialogue,
+  agentLastMessage: string,
+  userReply: string,
+): Promise<AssessmentResult> => {
+  const modelId = 'gemini-3-flash-preview';
+  const prompt = `
+    Role: Conversational English Coach.
+    Context: 
+    - Dialogue Scenario: ${dialogue.scenario}
+    - Your Role: ${dialogue.roles.ai}
+    - User's Role: ${dialogue.roles.user}
+    - You just said: "${agentLastMessage}"
+    - User replied: "${userReply}"
+    - Target Level: ${dialogue.difficulty}
+    Task:
+    1. Evaluate the user's reply for logic (does it make sense?), grammar, and appropriate tone for the situation.
+    2. Assign scores (1-10).
+    3. **Identify Specific Improvements**: Find exact substrings in the user's input that are wrong or unnatural. Provide corrections and explanations for each.
+    4. Generate the Next Logical Reply for you (the AI role) to continue the conversation naturally.
+    Return JSON.
+    `;
+
+  try {
+    const response = await retryOperation<GenerateContentResponse>(() =>
+      ai.models.generateContent({
+        model: modelId,
+        contents: [{role: 'user', parts: [{text: prompt}]}],
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: assessmentSchema,
+          temperature: 0.4,
+        },
+      }),
+    );
+
+    const jsonText = response.text;
+    if (!jsonText) throw new Error('No response from AI');
+
+    return JSON.parse(jsonText) as AssessmentResult;
+  } catch (error) {
+    console.warn('Dialogue Eval Error (Falling back to Mock):', error);
+    return MOCK_ASSESSMENT_RESULT;
   }
 };

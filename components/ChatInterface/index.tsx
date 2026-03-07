@@ -293,7 +293,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       elements.push(
         <span
           key={`highlight-${i}`}
-          className={`cursor-pointer border-b-2 ${m.improvement.type === 'grammar' ? 'border-rose-400 bg-rose-50/50 text-rose-700' : 'border-purple-400 bg-purple-50/50 text-purple-700'} px-0.5 rounded transition-all hover:bg-opacity-100 relative group inline-block mx-0.5`}
+          className={`cursor-pointer border-b-2 ${m.improvement.type === 'grammar' ? 'border-rose-400 bg-rose-50/50 text-rose-700' : 'border-purple-400 bg-purple-50/50 text-purple-700'} px-0.5 rounded transition-all hover:bg-opacity-100 relative group/tooltip inline-block mx-0.5`}
           onClick={(e) => {
             e.stopPropagation();
             handleSaveItem({
@@ -308,7 +308,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           }}
         >
           {text.substring(m.start, m.end)}
-          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-slate-800 text-white text-xs p-3 rounded-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10 shadow-xl">
+          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-slate-800 text-white text-xs p-3 rounded-xl opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity z-10 shadow-xl">
             <span className="block font-bold mb-1 text-emerald-400 flex items-center gap-1">
               {m.improvement.correction}
               {isSaved && <CheckCircle size={10} />}

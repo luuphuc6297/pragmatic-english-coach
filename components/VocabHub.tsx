@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Search, Loader2, Network, BookOpen, Volume2, Plus, ArrowRight, X, Library, Tag, Trash2, Edit2, Check } from 'lucide-react';
 import { CEFRLevel, SavedItem } from '../types';
 import { generateWordAnalysis, WordAnalysis, generateTopicMindMap, MindMapNode } from '../services/geminiService';
@@ -27,14 +27,13 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
   const [mindMapData, setMindMapData] = useState<MindMapNode | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  const handleAnalyze = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchWord.trim()) return;
+  const analyzeWord = useCallback(async (word: string) => {
+    if (!word.trim()) return;
 
     setIsAnalyzing(true);
     setError(null);
     try {
-      const result = await generateWordAnalysis(searchWord.trim());
+      const result = await generateWordAnalysis(word.trim());
       setAnalysisResult(result);
     } catch (err) {
       setError("Failed to analyze word. Please try again.");
@@ -42,6 +41,11 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
     } finally {
       setIsAnalyzing(false);
     }
+  }, []);
+
+  const handleAnalyze = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await analyzeWord(searchWord);
   };
 
   const handleGenerateMap = async (e: React.FormEvent) => {
@@ -125,7 +129,7 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
             if(d.depth === 2) {
                 setSearchWord(d.data.label);
                 setActiveTab('analysis');
-                // Auto trigger search?
+                analyzeWord(d.data.label);
             }
         });
 
@@ -139,16 +143,36 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
         .attr("font-size", d => d.depth === 0 ? "16px" : d.depth === 1 ? "14px" : "12px")
         .attr("font-weight", d => d.depth < 2 ? "bold" : "normal")
         .attr("fill", d => d.depth < 2 ? "#1e293b" : "#475569")
+        .attr("cursor", "pointer")
+        .on("click", (event, d) => {
+            if(d.depth === 2) {
+                setSearchWord(d.data.label);
+                setActiveTab('analysis');
+                analyzeWord(d.data.label);
+            }
+        })
         .clone(true).lower()
         .attr("stroke", "white")
         .attr("stroke-width", 3);
     }
-  }, [mindMapData, activeTab]);
+  }, [mindMapData, activeTab, analyzeWord]);
 
   // Saved Items State
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ correction: '', context: '', category: '' });
+  const [editForm, setEditForm] = useState({ correction: '', context: '', category: '', partOfSpeech: '' });
+  const [selectedPOS, setSelectedPOS] = useState<string>('All');
+
+  const POS_OPTIONS = [
+    'Noun (Danh từ)',
+    'Verb (Động từ)',
+    'Adjective (Tính từ)',
+    'Adverb (Trạng từ)',
+    'Phrasal Verb (Cụm động từ)',
+    'Idiom (Thành ngữ)',
+    'Expression (Cụm từ)',
+    'Other (Khác)'
+  ];
 
   // Extract unique categories
   const categories = useMemo(() => {
@@ -157,17 +181,30 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
   }, [savedItems]);
 
   const filteredItems = useMemo(() => {
-    if (selectedCategory === 'All') return savedItems;
-    if (selectedCategory === 'Uncategorized') return savedItems.filter(item => !item.category);
-    return savedItems.filter(item => item.category === selectedCategory);
-  }, [savedItems, selectedCategory]);
+    let items = savedItems;
+    
+    if (selectedCategory !== 'All') {
+      if (selectedCategory === 'Uncategorized') {
+        items = items.filter(item => !item.category);
+      } else {
+        items = items.filter(item => item.category === selectedCategory);
+      }
+    }
+
+    if (selectedPOS !== 'All') {
+      items = items.filter(item => item.partOfSpeech === selectedPOS);
+    }
+
+    return items;
+  }, [savedItems, selectedCategory, selectedPOS]);
 
   const handleSaveEdit = (item: SavedItem) => {
     onUpdateItem({ 
       ...item, 
       correction: editForm.correction.trim() || item.correction,
       context: editForm.context.trim() || item.context,
-      category: editForm.category.trim() || undefined 
+      category: editForm.category.trim() || undefined,
+      partOfSpeech: editForm.partOfSpeech.trim() || undefined
     });
     setEditingItemId(null);
   };
@@ -177,7 +214,8 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
     setEditForm({
       correction: item.correction,
       context: item.context,
-      category: item.category || ''
+      category: item.category || '',
+      partOfSpeech: item.partOfSpeech || ''
     });
   };
 
@@ -449,21 +487,45 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
 
         {activeTab === 'saved' && (
           <div className="max-w-5xl mx-auto space-y-6">
-            {/* Categories Filter */}
-            <div className="flex flex-wrap gap-2 mb-6">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    selectedCategory === cat
-                      ? 'bg-emerald-500 text-white shadow-sm'
-                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
+            {/* Filters */}
+            <div className="flex flex-col gap-4 mb-6">
+              <div>
+                <h4 className="text-xs font-bold text-slate-400 uppercase mb-2">Categories</h4>
+                <div className="flex flex-wrap gap-2">
+                  {categories.map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setSelectedCategory(cat)}
+                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                        selectedCategory === cat
+                          ? 'bg-emerald-500 text-white shadow-sm'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-bold text-slate-400 uppercase mb-2">Part of Speech</h4>
+                <div className="flex flex-wrap gap-2">
+                  {['All', ...POS_OPTIONS].map((pos) => (
+                    <button
+                      key={pos}
+                      onClick={() => setSelectedPOS(pos)}
+                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                        selectedPOS === pos
+                          ? 'bg-purple-500 text-white shadow-sm'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {pos}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Items Grid */}
@@ -510,6 +572,19 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
                             className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500"
                           />
                         </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-1">Part of Speech</label>
+                          <select
+                            value={editForm.partOfSpeech}
+                            onChange={(e) => setEditForm({ ...editForm, partOfSpeech: e.target.value })}
+                            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 bg-white"
+                          >
+                            <option value="">Select Part of Speech...</option>
+                            {POS_OPTIONS.map(pos => (
+                              <option key={pos} value={pos}>{pos}</option>
+                            ))}
+                          </select>
+                        </div>
                         <div className="flex items-center justify-end gap-2 pt-2 mt-auto">
                           <button
                             onClick={() => setEditingItemId(null)}
@@ -530,7 +605,14 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
                       <>
                         <div className="flex justify-between items-start mb-3">
                           <div className="flex-1">
-                            <h4 className="font-bold text-lg text-slate-900">{item.correction}</h4>
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-bold text-lg text-slate-900">{item.correction}</h4>
+                              {item.partOfSpeech && (
+                                <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-600 text-[10px] font-bold uppercase tracking-wider">
+                                  {item.partOfSpeech}
+                                </span>
+                              )}
+                            </div>
                             {item.original !== item.correction && (
                               <p className="text-sm text-slate-500 line-through">{item.original}</p>
                             )}
