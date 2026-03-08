@@ -27,22 +27,11 @@ const MODE_CARDS = [
     ctaColor: 'text-brand-400',
   },
   {
-    mode: 'dialogues' as ChatMode,
-    icon: Users,
-    title: 'Practice Dialogues',
-    description:
-      'Choose from predefined scenarios and roleplay a full conversation with the AI.',
-    borderHover: 'hover:border-blue-500',
-    iconBg: 'bg-blue-500/20 text-blue-400',
-    iconHover: 'group-hover:bg-blue-500',
-    ctaColor: 'text-blue-400',
-  },
-  {
     mode: 'story' as ChatMode,
     icon: BookOpen,
     title: 'Story Mode',
     description:
-      'Immerse yourself in a continuous roleplay conversation. The AI adapts to your replies dynamically.',
+      'Choose a scenario or describe your own to practice conversational skills. The AI adapts to your replies dynamically.',
     borderHover: 'hover:border-purple-500',
     iconBg: 'bg-purple-500/20 text-purple-400',
     iconHover: 'group-hover:bg-purple-500',
@@ -79,6 +68,16 @@ const MODE_CARDS = [
     iconHover: 'group-hover:bg-emerald-500',
     ctaColor: 'text-emerald-400',
   },
+  {
+    mode: 'live' as ChatMode,
+    icon: Users,
+    title: 'Live Conversation',
+    description: 'Practice natural, real-time voice conversations with an AI English coach.',
+    borderHover: 'hover:border-rose-500',
+    iconBg: 'bg-rose-500/20 text-rose-400',
+    iconHover: 'group-hover:bg-rose-500',
+    ctaColor: 'text-rose-400',
+  },
 ];
 
 interface ModeSelectionProps {
@@ -90,6 +89,7 @@ interface ModeSelectionProps {
   onToggleProfile: (show: boolean) => void;
   onSaveProfile: (prefs: UserPreferences) => void;
   profileStats: {lessonsCompleted: number; averageScore: string; totalMessages: number};
+  onSignOut: () => void;
 }
 
 const ModeSelection: React.FC<ModeSelectionProps> = ({
@@ -101,6 +101,7 @@ const ModeSelection: React.FC<ModeSelectionProps> = ({
   onToggleProfile,
   onSaveProfile,
   profileStats,
+  onSignOut,
 }) => {
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-slate-900 p-6 text-white overflow-hidden relative">
@@ -108,6 +109,14 @@ const ModeSelection: React.FC<ModeSelectionProps> = ({
 
       <div className="max-w-5xl w-full z-10 text-center px-4">
         <div className="flex flex-col items-center mb-10">
+          <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-slate-800 border-4 border-slate-700 overflow-hidden mb-4 shadow-xl flex items-center justify-center">
+            <img 
+              src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(userPreferences?.name || 'User')}&backgroundColor=0ea5e9,10b981,6366f1,f43f5e,f59e0b,8b5cf6`} 
+              alt="User Avatar" 
+              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          </div>
           <h1 className="text-4xl font-bold mb-3">Welcome back, {userPreferences?.name}</h1>
           <p className="text-slate-400 text-lg">Choose a mode to continue your journey.</p>
         </div>
@@ -159,6 +168,12 @@ const ModeSelection: React.FC<ModeSelectionProps> = ({
           >
             <RotateCcw size={16} /> Reset All Data
           </button>
+          <button
+            onClick={onSignOut}
+            className="flex items-center gap-2 text-slate-400 hover:text-white text-sm font-bold bg-slate-800 px-4 py-2 rounded-full border border-slate-700 hover:border-slate-500 transition-all"
+          >
+            Sign Out
+          </button>
         </div>
       </div>
 
@@ -168,7 +183,7 @@ const ModeSelection: React.FC<ModeSelectionProps> = ({
           stats={profileStats}
           onClose={() => onToggleProfile(false)}
           onSave={onSaveProfile}
-          onLogout={onResetSettings}
+          onLogout={onSignOut}
         />
       )}
     </div>

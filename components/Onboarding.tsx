@@ -94,7 +94,21 @@ const Onboarding: React.FC<OnboardingProps> = ({onComplete}) => {
 
         {step === 2 && (
           <div className="animate-in slide-in-from-right fade-in duration-500">
-            <h2 className="text-xl font-bold mb-6 text-center">Choose Topics of Interest</h2>
+            <div className="flex justify-between items-center mb-6 px-4">
+              <h2 className="text-xl font-bold text-center flex-1">Choose Topics of Interest</h2>
+              <button 
+                onClick={() => {
+                  if (topics.length === ONBOARDING_TOPICS.length) {
+                    setTopics([]);
+                  } else {
+                    setTopics(ONBOARDING_TOPICS.map(t => t.label));
+                  }
+                }}
+                className="text-sm font-medium text-brand-400 hover:text-brand-300 transition-colors absolute right-4"
+              >
+                {topics.length === ONBOARDING_TOPICS.length ? 'Deselect All' : 'Select All'}
+              </button>
+            </div>
             <div className="flex flex-wrap justify-center gap-3">
               {ONBOARDING_TOPICS.map((topic) => {
                 const isSelected = topics.includes(topic.label);

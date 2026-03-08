@@ -37,6 +37,7 @@ interface AssessmentCardProps {
   onPlayAudio: (msgId: string, text: string, toneKey: string) => void;
   videoLoadingId: string | null;
   audioLoadingId: string | null;
+  onReturnToModes?: () => void;
 }
 
 const TONE_VARIATIONS = [
@@ -83,7 +84,9 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
   onPlayAudio,
   videoLoadingId,
   audioLoadingId,
+  onReturnToModes,
 }) => {
+  const [isVideoCollapsed, setIsVideoCollapsed] = React.useState(false);
   const assessment = msg.assessment!;
 
   const scoreColorClass =
@@ -301,17 +304,34 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
           {/* Video Button */}
           <div>
             {msg.generatedVideoUrl ? (
-              <div className="rounded-xl overflow-hidden border border-slate-200 bg-black shadow-md">
-                <div className="bg-slate-900 text-white text-[10px] py-2 px-3 font-bold uppercase flex items-center gap-2">
-                  <Video size={12} /> Generated Context Video
-                </div>
-                <video
-                  src={msg.generatedVideoUrl}
-                  controls
-                  className="w-full aspect-video object-cover"
-                  autoPlay
-                  loop
-                />
+              <div className="rounded-xl overflow-hidden border border-slate-200 bg-black shadow-md relative">
+                <button 
+                  onClick={() => setIsVideoCollapsed(!isVideoCollapsed)}
+                  className="w-full bg-slate-900 hover:bg-slate-800 text-white text-[10px] py-2 px-3 font-bold uppercase flex items-center justify-between transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Video size={12} /> Generated Context Video
+                  </div>
+                  {isVideoCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                </button>
+                {!isVideoCollapsed && (
+                  <video
+                    src={msg.generatedVideoUrl}
+                    controls
+                    className="w-full aspect-video object-cover"
+                    autoPlay
+                    loop
+                    crossOrigin="anonymous"
+                  >
+                    <track
+                      kind="subtitles"
+                      srcLang="en"
+                      label="English"
+                      default
+                      src={`data:text/vtt;charset=utf-8,${encodeURIComponent(`WEBVTT\n\n1\n00:00:00.000 --> 00:00:10.000\n${msg.assessment?.betterAlternative || msg.assessment?.correction || msg.assessment?.alternativeTones?.conversational || msg.assessment?.alternativeTones?.formal || msg.content}`)}`}
+                    />
+                  </video>
+                )}
               </div>
             ) : (
               <button
@@ -406,10 +426,30 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
             <div className="flex flex-col gap-3">
               <button
                 onClick={() => onNextLesson('same')}
-                className="w-full py-3 bg-white text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-xl text-xs font-bold border border-slate-200 transition-colors"
+                className="w-full py-4 bg-blue-600 text-white hover:bg-blue-700 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 transform transition-all active:scale-[0.98]"
               >
-                End & Choose Another Dialogue
+                <RefreshCcw size={18} /> Try Another Dialogue
               </button>
+              <button
+                onClick={() => {
+                  // Scroll to top to review performance
+                  const chatContainer = document.querySelector('.scrollbar-hide');
+                  if (chatContainer) {
+                    chatContainer.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
+                }}
+                className="w-full py-3 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-xl text-xs font-bold border border-slate-200 transition-colors flex items-center justify-center gap-2"
+              >
+                <BarChart2 size={16} /> Review Performance
+              </button>
+              {onReturnToModes && (
+                <button
+                  onClick={onReturnToModes}
+                  className="w-full py-3 bg-white text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-xl text-xs font-bold border border-slate-200 transition-colors"
+                >
+                  Return to Mode Selection
+                </button>
+              )}
             </div>
           )}
 

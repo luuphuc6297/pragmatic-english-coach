@@ -1,6 +1,6 @@
 
 export type CEFRLevel = 'A1-A2' | 'B1-B2' | 'C1-C2';
-export type ChatMode = 'roleplay' | 'translator' | 'story' | 'quiz' | 'vocab_hub' | 'dialogues';
+export type ChatMode = 'roleplay' | 'translator' | 'story' | 'quiz' | 'vocab_hub' | 'dialogues' | 'live';
 
 export type ExerciseType = 'fill-in-the-blank' | 'sentence-construction';
 

@@ -14,6 +14,8 @@ import {
   ArrowRightLeft,
   Sparkles,
   Users,
+  Plus,
+  Network,
 } from 'lucide-react';
 import {ChatMode, LessonContext, StoryScenario, PracticeDialogue, CEFRLevel} from '../types';
 import ProgressiveHint from './ProgressiveHint';
@@ -40,6 +42,7 @@ interface ContextPanelProps {
   onShowProfile: () => void;
   onShowHistory: () => void;
   onNextLesson: (direction: 'same' | 'harder' | 'easier') => void;
+  onStartNew: () => void;
 }
 
 const ContextPanel: React.FC<ContextPanelProps> = ({
@@ -63,6 +66,7 @@ const ContextPanel: React.FC<ContextPanelProps> = ({
   onShowProfile,
   onShowHistory,
   onNextLesson,
+  onStartNew,
 }) => {
   return (
     <div className="hidden md:flex md:w-[40%] flex-col bg-slate-900 border-r border-slate-800">
@@ -87,8 +91,13 @@ const ContextPanel: React.FC<ContextPanelProps> = ({
             onClick={onShowProfile}
             className="flex items-center gap-2 text-white font-bold tracking-tight hover:bg-slate-800 py-1 px-2 rounded-lg transition-colors group"
           >
-            <div className="w-6 h-6 rounded-full bg-brand-500 flex items-center justify-center text-[10px] uppercase text-white">
-              {userName?.slice(0, 2) || 'ME'}
+            <div className="w-6 h-6 rounded-full bg-slate-800 border border-slate-700 overflow-hidden flex items-center justify-center">
+              <img 
+                src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(userName || 'User')}&backgroundColor=0ea5e9,10b981,6366f1,f43f5e,f59e0b,8b5cf6`} 
+                alt="User Avatar" 
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
             </div>
             <span className="group-hover:text-brand-400 transition-colors">{userName}</span>
           </button>
@@ -108,6 +117,15 @@ const ContextPanel: React.FC<ContextPanelProps> = ({
               Avg: <span className="text-white font-bold">{averageScore}</span>
             </span>
           </div>
+          <button
+            onClick={onStartNew}
+            disabled={isGenerating}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white rounded-full font-medium transition-colors shadow-sm text-xs disabled:opacity-50"
+            title="New Conversation"
+          >
+            <Plus size={14} />
+            New
+          </button>
         </div>
       </div>
 
@@ -246,6 +264,25 @@ const ContextPanel: React.FC<ContextPanelProps> = ({
                 </span>
               </div>
             </div>
+          ) : chatMode === 'vocab_hub' ? (
+            <div className="relative z-10 flex flex-col gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                  <Network size={24} />
+                </div>
+                <div className="px-3 py-1 rounded-lg bg-emerald-900/30 border border-emerald-500/20">
+                  <span className="text-emerald-300 text-[10px] font-bold uppercase tracking-widest">
+                    Tool
+                  </span>
+                </div>
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-white leading-tight">Vocab Hub</h2>
+                <p className="text-sm text-slate-400 mt-1">
+                  Explore vocabulary through mind maps and deep analysis.
+                </p>
+              </div>
+            </div>
           ) : (
             <div className="relative z-10 flex flex-col gap-4">
               <div className="flex items-center gap-3">
@@ -271,6 +308,23 @@ const ContextPanel: React.FC<ContextPanelProps> = ({
 
       {/* Context Details */}
       <div className="flex-1 px-8 py-6 flex flex-col gap-6 overflow-y-auto">
+        {chatMode === 'vocab_hub' && (
+          <div className="text-center mt-4 space-y-6">
+            <div>
+              <h2 className="text-emerald-400 font-bold text-xl mb-2">Topic Mind Map</h2>
+              <p className="text-slate-400 text-sm leading-relaxed text-left">
+                Start with a root topic and dynamically expand it. Click on any node to generate related vocabulary words. You can also add your own custom words to see how they connect to the existing map.
+              </p>
+            </div>
+            <div>
+              <h2 className="text-blue-400 font-bold text-xl mb-2">Morphological Analysis</h2>
+              <p className="text-slate-400 text-sm leading-relaxed text-left">
+                Enter any English word to get a deep dive into its meaning, pronunciation, word family, synonyms, antonyms, and common collocations.
+              </p>
+            </div>
+          </div>
+        )}
+
         {chatMode === 'translator' && (
           <div className="text-center mt-4">
             <h2 className="text-indigo-400 font-bold text-xl mb-2">Tone & Nuance Translator</h2>

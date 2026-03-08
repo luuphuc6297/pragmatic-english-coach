@@ -22,7 +22,7 @@ declare global {
 }
 
 // Initialize Gemini
-const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
+const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
 
 // --- MOCK DATA FOR FALLBACKS ---
 const MOCK_ASSESSMENT_RESULT: AssessmentResult = {
@@ -120,11 +120,14 @@ const retryOperation = async <T>(
         msg.includes('429') ||
         msg.includes('RESOURCE_EXHAUSTED') ||
         msg.includes('quota') ||
-        error?.status === 429;
+        msg.includes('503') ||
+        msg.includes('UNAVAILABLE') ||
+        error?.status === 429 ||
+        error?.status === 503;
 
       if (isRateLimit) {
         console.warn(
-          `[Gemini Service] Rate limit hit. Retrying attempt ${i + 1}/${maxRetries} in ${delay}ms`,
+          `[Gemini Service] Transient error hit (${error?.status || 'unknown'}). Retrying attempt ${i + 1}/${maxRetries} in ${delay}ms`,
         );
         await new Promise((resolve) => setTimeout(resolve, delay));
         delay *= 2;
@@ -551,15 +554,21 @@ export const generateStoryScenario = async (
   level: CEFRLevel,
   topic: string,
   previousTitles: string[] = [],
+  customContext?: string
 ): Promise<StoryScenario> => {
   const modelId = 'gemini-3-flash-preview';
   const recentContext = previousTitles.slice(-20).join(' | ');
+  
+  const contextPrompt = customContext 
+    ? `Context/Scenario: ${customContext}` 
+    : `Topic: ${topic}.\n    6. **STRICT UNIQUENESS**: You MUST NOT generate any scenario that is similar in theme, title, or situation to these previously generated scenarios: [${recentContext}]. Think outside the box and create a completely new sub-topic or situation.`;
+
   const prompt = `
     Create a conversation starter scenario for an English learner.
     Level: ${level}.
-    Topic: ${topic}.
+    ${contextPrompt}
     Instructions:
-    1. Define a specific, highly unique situation where the User interacts with an Agent.
+    1. Define a specific, highly unique situation where the User interacts with an Agent based on the context/topic above.
     2. Give the Agent a name.
     3. Write the FIRST line (opening line) that the Agent says to the User. It should be a greeting or a question to start the conversation.
     4. Provide the Vietnamese translation for that opening line.
@@ -567,7 +576,6 @@ export const generateStoryScenario = async (
        - Level 1: Meaning/Intent hint (e.g., "You should greet back and ask about...").
        - Level 2: Structure hint (e.g., "Start with 'Hi', then use Present Perfect...").
        - Level 3: Vocabulary hint (e.g., "Use the word '...').
-    6. **STRICT UNIQUENESS**: You MUST NOT generate any scenario that is similar in theme, title, or situation to these previously generated scenarios: [${recentContext}]. Think outside the box and create a completely new sub-topic or situation.
     Output JSON.
     `;
 
@@ -588,6 +596,12 @@ export const generateStoryScenario = async (
     if (!jsonText) throw new Error('No story generated');
     const story = JSON.parse(jsonText) as StoryScenario;
     story.id = Date.now().toString();
+    
+    // If custom context was provided, use it as the topic/title
+    if (customContext) {
+      story.topic = customContext.length > 50 ? customContext.substring(0, 50) + '...' : customContext;
+    }
+    
     return story;
   } catch (error) {
     console.warn('Story Gen Error (Falling back to Mock):', error);
@@ -695,7 +709,7 @@ export const generateScenarioVideo = async (situation: string, phrase: string): 
       await window.aistudio.openSelectKey();
     }
   }
-  const veoAi = new GoogleGenAI({apiKey: process.env.API_KEY});
+  const veoAi = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
   const prompt = `
     Cinematic, realistic 4k video. 
     Context: ${situation}.
@@ -715,19 +729,28 @@ export const generateScenarioVideo = async (situation: string, phrase: string): 
           aspectRatio: '16:9',
         },
       }),
+      3,
+      2000
     );
 
     while (!operation.done) {
       await new Promise((resolve) => setTimeout(resolve, 5000));
       operation = await retryOperation<any>(() =>
         veoAi.operations.getVideosOperation({operation: operation}),
+        3,
+        2000
       );
       console.log('Generating video... status:', operation.metadata);
     }
 
     const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
     if (!downloadLink) throw new Error('No video URI returned');
-    const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
+    const response = await fetch(downloadLink, {
+      method: 'GET',
+      headers: {
+        'x-goog-api-key': process.env.API_KEY || process.env.GEMINI_API_KEY || '',
+      },
+    });
     const blob = await response.blob();
     return URL.createObjectURL(blob);
   } catch (error: any) {
@@ -943,16 +966,26 @@ export interface MindMapNode {
   id: string;
   label: string;
   type: 'topic' | 'category' | 'word';
+  translation?: string;
+  partOfSpeech?: string;
+  context?: string;
   children?: MindMapNode[];
 }
 
 export const generateTopicMindMap = async (topic: string, level: CEFRLevel): Promise<MindMapNode> => {
   const modelId = 'gemini-3-flash-preview';
   const prompt = `
-    Create a vocabulary mind map for the topic "${topic}" at the ${level} level.
+    Create an initial vocabulary mind map for the topic "${topic}" at the ${level} level.
     The root node should be the topic itself.
-    It should have 3-4 main categories (branches).
-    Each category should have 3-5 specific vocabulary words (leaves).
+    It should have exactly 2 highly concrete, common, and direct vocabulary words as children.
+    For example, if the topic is "Family", the children MUST be concrete words like "Mother" and "Father", NOT abstract concepts like "Family dynamics" or "Extended family".
+    Keep the words simple, direct, and highly relevant to everyday usage.
+    
+    For the root node AND each child node, provide:
+    1. The English word (label)
+    2. The Vietnamese translation (translation)
+    3. The part of speech (partOfSpeech) - e.g., "Noun", "Verb", "Adjective"
+    4. A short English sentence explaining its context or usage (context)
     
     Output strictly in JSON format matching the requested structure.
   `;
@@ -963,6 +996,9 @@ export const generateTopicMindMap = async (topic: string, level: CEFRLevel): Pro
       id: { type: Type.STRING },
       label: { type: Type.STRING },
       type: { type: Type.STRING, enum: ['topic', 'category', 'word'] },
+      translation: { type: Type.STRING },
+      partOfSpeech: { type: Type.STRING },
+      context: { type: Type.STRING },
       children: {
         type: Type.ARRAY,
         items: {
@@ -971,24 +1007,15 @@ export const generateTopicMindMap = async (topic: string, level: CEFRLevel): Pro
             id: { type: Type.STRING },
             label: { type: Type.STRING },
             type: { type: Type.STRING, enum: ['topic', 'category', 'word'] },
-            children: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.STRING },
-                  label: { type: Type.STRING },
-                  type: { type: Type.STRING, enum: ['topic', 'category', 'word'] }
-                },
-                required: ['id', 'label', 'type']
-              }
-            }
+            translation: { type: Type.STRING },
+            partOfSpeech: { type: Type.STRING },
+            context: { type: Type.STRING },
           },
-          required: ['id', 'label', 'type', 'children']
+          required: ['id', 'label', 'type', 'translation', 'partOfSpeech', 'context']
         }
       }
     },
-    required: ['id', 'label', 'type', 'children']
+    required: ['id', 'label', 'type', 'translation', 'partOfSpeech', 'context', 'children']
   };
 
   try {
@@ -999,7 +1026,7 @@ export const generateTopicMindMap = async (topic: string, level: CEFRLevel): Pro
         config: {
           responseMimeType: 'application/json',
           responseSchema: schema,
-          temperature: 0.7,
+          temperature: 0.2,
         },
       })
     );
@@ -1013,8 +1040,138 @@ export const generateTopicMindMap = async (topic: string, level: CEFRLevel): Pro
   }
 };
 
+export const expandMindMapNode = async (nodeLabel: string, rootTopic: string, level: CEFRLevel): Promise<MindMapNode[]> => {
+  const modelId = 'gemini-3-flash-preview';
+  const prompt = `
+    The user is expanding a vocabulary mind map about "${rootTopic}" at the ${level} level.
+    They clicked on the node "${nodeLabel}".
+    Generate exactly 2 new, highly concrete and specific vocabulary words that branch off from "${nodeLabel}".
+    For example, if the node is "Mother", generate concrete words like "Grandmother", "Aunt", or "Maternal".
+    Do NOT generate abstract concepts, long phrases, or explanations. Keep it to 1-2 words per node.
+    The words must be directly related to "${nodeLabel}" in the context of "${rootTopic}".
+    
+    For each new node, provide:
+    1. The English word (label)
+    2. The Vietnamese translation (translation)
+    3. The part of speech (partOfSpeech) - e.g., "Noun", "Verb", "Adjective"
+    4. A short English sentence explaining its context or usage (context)
+    
+    Output strictly in JSON format as an array of 2 objects.
+  `;
+
+  const schema: Schema = {
+    type: Type.ARRAY,
+    items: {
+      type: Type.OBJECT,
+      properties: {
+        id: { type: Type.STRING },
+        label: { type: Type.STRING },
+        type: { type: Type.STRING, enum: ['topic', 'category', 'word'] },
+        translation: { type: Type.STRING },
+        partOfSpeech: { type: Type.STRING },
+        context: { type: Type.STRING },
+      },
+      required: ['id', 'label', 'type', 'translation', 'partOfSpeech', 'context']
+    }
+  };
+
+  try {
+    const response = await retryOperation<GenerateContentResponse>(() =>
+      ai.models.generateContent({
+        model: modelId,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: schema,
+          temperature: 0.2,
+        },
+      })
+    );
+
+    const jsonText = response.text;
+    if (!jsonText) throw new Error('No mind map expansion generated');
+    return JSON.parse(jsonText) as MindMapNode[];
+  } catch (error) {
+    console.error('Mind Map Expansion Error:', error);
+    throw error;
+  }
+};
+
+export interface CustomNodeResult {
+  status: 'connected' | 'unrelated';
+  parentNodeId?: string;
+  message?: string;
+  translation?: string;
+  partOfSpeech?: string;
+  context?: string;
+}
+
+export const analyzeCustomNode = async (customWord: string, mindMapData: MindMapNode): Promise<CustomNodeResult> => {
+  const modelId = 'gemini-3-flash-preview';
+  
+  const nodesList: {id: string, label: string}[] = [];
+  const traverse = (node: MindMapNode) => {
+    nodesList.push({id: node.id, label: node.label});
+    if (node.children) {
+      node.children.forEach(traverse);
+    }
+  };
+  traverse(mindMapData);
+
+  const prompt = `
+    The user wants to add the word "${customWord}" to their current vocabulary mind map.
+    Here are the existing nodes in the mind map:
+    ${JSON.stringify(nodesList)}
+    
+    Determine if "${customWord}" is related to any of these existing nodes.
+    If it is related, find the BEST parent node for it and return status "connected" with the parentNodeId.
+    Also provide:
+    1. The Vietnamese translation (translation)
+    2. The part of speech (partOfSpeech) - e.g., "Noun", "Verb", "Adjective"
+    3. A short English sentence explaining its context or usage (context)
+    
+    If it is NOT related to ANY of the nodes (including the root), return status "unrelated" and a brief message explaining why.
+    
+    Output strictly in JSON format.
+  `;
+
+  const schema: Schema = {
+    type: Type.OBJECT,
+    properties: {
+      status: { type: Type.STRING, enum: ['connected', 'unrelated'] },
+      parentNodeId: { type: Type.STRING, description: 'The ID of the best parent node if connected.' },
+      message: { type: Type.STRING, description: 'Explanation if unrelated.' },
+      translation: { type: Type.STRING },
+      partOfSpeech: { type: Type.STRING },
+      context: { type: Type.STRING }
+    },
+    required: ['status']
+  };
+
+  try {
+    const response = await retryOperation<GenerateContentResponse>(() =>
+      ai.models.generateContent({
+        model: modelId,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: schema,
+          temperature: 0.1,
+        },
+      })
+    );
+
+    const jsonText = response.text;
+    if (!jsonText) throw new Error('No custom node analysis generated');
+    return JSON.parse(jsonText) as CustomNodeResult;
+  } catch (error) {
+    console.error('Custom Node Analysis Error:', error);
+    throw error;
+  }
+};
+
 export const generateNativeSpeech = async (text: string): Promise<string> => {
-  const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
+  const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
   try {
     const response = await retryOperation<GenerateContentResponse>(() =>
       ai.models.generateContent({
@@ -1101,51 +1258,5 @@ export const generateExercises = async (savedItems: SavedItem[], count: number =
   } catch (error) {
     console.error('Exercise Generation Error:', error);
     throw error;
-  }
-};
-
-export const evaluateDialogueTurn = async (
-  dialogue: PracticeDialogue,
-  agentLastMessage: string,
-  userReply: string,
-): Promise<AssessmentResult> => {
-  const modelId = 'gemini-3-flash-preview';
-  const prompt = `
-    Role: Conversational English Coach.
-    Context: 
-    - Dialogue Scenario: ${dialogue.scenario}
-    - Your Role: ${dialogue.roles.ai}
-    - User's Role: ${dialogue.roles.user}
-    - You just said: "${agentLastMessage}"
-    - User replied: "${userReply}"
-    - Target Level: ${dialogue.difficulty}
-    Task:
-    1. Evaluate the user's reply for logic (does it make sense?), grammar, and appropriate tone for the situation.
-    2. Assign scores (1-10).
-    3. **Identify Specific Improvements**: Find exact substrings in the user's input that are wrong or unnatural. Provide corrections and explanations for each.
-    4. Generate the Next Logical Reply for you (the AI role) to continue the conversation naturally.
-    Return JSON.
-    `;
-
-  try {
-    const response = await retryOperation<GenerateContentResponse>(() =>
-      ai.models.generateContent({
-        model: modelId,
-        contents: [{role: 'user', parts: [{text: prompt}]}],
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: assessmentSchema,
-          temperature: 0.4,
-        },
-      }),
-    );
-
-    const jsonText = response.text;
-    if (!jsonText) throw new Error('No response from AI');
-
-    return JSON.parse(jsonText) as AssessmentResult;
-  } catch (error) {
-    console.warn('Dialogue Eval Error (Falling back to Mock):', error);
-    return MOCK_ASSESSMENT_RESULT;
   }
 };

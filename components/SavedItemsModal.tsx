@@ -1,17 +1,30 @@
 import React, { useState, useMemo } from 'react';
 import { SavedItem } from '../types';
-import { BookOpen, Trash2, Play, CheckCircle, Info, Loader2, Clock, Tag } from 'lucide-react';
+import { BookOpen, Trash2, Play, CheckCircle, Info, Loader2, Clock, Tag, RefreshCw, Check } from 'lucide-react';
 
 interface SavedItemsModalProps {
   items: SavedItem[];
   onClose: () => void;
   onDelete: (id: string) => void;
   onPractice: (item: SavedItem) => void;
+  onSync?: () => Promise<void>;
 }
 
-const SavedItemsModal: React.FC<SavedItemsModalProps> = ({ items, onClose, onDelete, onPractice }) => {
+const SavedItemsModal: React.FC<SavedItemsModalProps> = ({ items, onClose, onDelete, onPractice, onSync }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedPOS, setSelectedPOS] = useState<string>('All');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncSuccess, setSyncSuccess] = useState(false);
+
+  const handleSync = async () => {
+    if (!onSync) return;
+    setIsSyncing(true);
+    setSyncSuccess(false);
+    await onSync();
+    setIsSyncing(false);
+    setSyncSuccess(true);
+    setTimeout(() => setSyncSuccess(false), 2000);
+  };
 
   const POS_OPTIONS = [
     'Noun (Danh từ)',
@@ -64,12 +77,28 @@ const SavedItemsModal: React.FC<SavedItemsModalProps> = ({ items, onClose, onDel
             </h2>
             <p className="text-sm text-slate-500 mt-1">Review and practice your saved corrections.</p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-2">
+            {onSync && (
+              <button
+                onClick={handleSync}
+                disabled={isSyncing}
+                title="Sync Library to Cloud"
+                className="p-2 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50"
+              >
+                {syncSuccess ? (
+                  <Check size={20} className="text-emerald-500" />
+                ) : (
+                  <RefreshCw size={20} className={isSyncing ? 'animate-spin text-brand-500' : ''} />
+                )}
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* Content */}

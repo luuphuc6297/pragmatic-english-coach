@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Search, Loader2, Network, BookOpen, Volume2, Plus, ArrowRight, X, Library, Tag, Trash2, Edit2, Check } from 'lucide-react';
+import { Search, Loader2, Network, BookOpen, Volume2, Plus, ArrowRight, X, Library, Tag, Trash2, Edit2, Check, AlertCircle, Download } from 'lucide-react';
 import { CEFRLevel, SavedItem } from '../types';
-import { generateWordAnalysis, WordAnalysis, generateTopicMindMap, MindMapNode } from '../services/geminiService';
+import { generateWordAnalysis, WordAnalysis, generateTopicMindMap, MindMapNode, expandMindMapNode, analyzeCustomNode } from '../services/geminiService';
 import * as d3 from 'd3';
 import VocabPractice from './VocabPractice';
+
+import Flashcards from './Flashcards';
 
 interface VocabHubProps {
   userLevel: CEFRLevel;
@@ -13,7 +15,7 @@ interface VocabHubProps {
 }
 
 const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem, onDeleteItem }) => {
-  const [activeTab, setActiveTab] = useState<'analysis' | 'mindmap' | 'saved' | 'practice'>('analysis');
+  const [activeTab, setActiveTab] = useState<'analysis' | 'mindmap' | 'saved' | 'practice' | 'flashcards'>('analysis');
   
   // Analysis State
   const [searchWord, setSearchWord] = useState('');
@@ -25,6 +27,10 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
   const [topic, setTopic] = useState('');
   const [isGeneratingMap, setIsGeneratingMap] = useState(false);
   const [mindMapData, setMindMapData] = useState<MindMapNode | null>(null);
+  const [expandingNodeId, setExpandingNodeId] = useState<string | null>(null);
+  const [customNodeWord, setCustomNodeWord] = useState('');
+  const [isAddingCustomNode, setIsAddingCustomNode] = useState(false);
+  const [customNodeMessage, setCustomNodeMessage] = useState<{type: 'success' | 'error' | 'warning', text: string} | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
   const analyzeWord = useCallback(async (word: string) => {
@@ -54,6 +60,7 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
 
     setIsGeneratingMap(true);
     setError(null);
+    setCustomNodeMessage(null);
     try {
       const result = await generateTopicMindMap(topic.trim(), userLevel);
       setMindMapData(result);
@@ -65,10 +72,143 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
     }
   };
 
+  const handleExpandNode = async (nodeId: string, nodeLabel: string) => {
+    if (!mindMapData) return;
+    setExpandingNodeId(nodeId);
+    setError(null);
+    setCustomNodeMessage(null);
+    try {
+      const newChildren = await expandMindMapNode(nodeLabel, topic, userLevel);
+      
+      // Deep clone and update mindMapData
+      const updateNode = (node: MindMapNode): MindMapNode => {
+        if (node.id === nodeId) {
+          return { ...node, children: [...(node.children || []), ...newChildren] };
+        }
+        if (node.children) {
+          return { ...node, children: node.children.map(updateNode) };
+        }
+        return node;
+      };
+      
+      setMindMapData(updateNode(mindMapData));
+    } catch (err) {
+      setError("Failed to expand node. Please try again.");
+      console.error(err);
+    } finally {
+      setExpandingNodeId(null);
+    }
+  };
+
+  const handleAddCustomNode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customNodeWord.trim() || !mindMapData) return;
+
+    setIsAddingCustomNode(true);
+    setCustomNodeMessage(null);
+    try {
+      const result = await analyzeCustomNode(customNodeWord.trim(), mindMapData);
+      
+      if (result.status === 'connected' && result.parentNodeId) {
+        // Add node to the tree
+        const newNode: MindMapNode = {
+          id: `custom-${Date.now()}`,
+          label: customNodeWord.trim(),
+          type: 'word',
+          translation: result.translation,
+          partOfSpeech: result.partOfSpeech,
+          context: result.context
+        };
+
+        const updateNode = (node: MindMapNode): MindMapNode => {
+          if (node.id === result.parentNodeId) {
+            return { ...node, children: [...(node.children || []), newNode] };
+          }
+          if (node.children) {
+            return { ...node, children: node.children.map(updateNode) };
+          }
+          return node;
+        };
+        
+        setMindMapData(updateNode(mindMapData));
+        setCustomNodeMessage({ type: 'success', text: `Added "${customNodeWord}" to the mind map!` });
+        setCustomNodeWord('');
+      } else {
+        setCustomNodeMessage({ 
+          type: 'warning', 
+          text: `"${customNodeWord}" doesn't seem related to the current mind map. You can generate a new mind map for it, or try another word.` 
+        });
+      }
+    } catch (err) {
+      setCustomNodeMessage({ type: 'error', text: "Failed to analyze custom node." });
+      console.error(err);
+    } finally {
+      setIsAddingCustomNode(false);
+    }
+  };
+
   const playAudio = (text: string) => {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-US';
     window.speechSynthesis.speak(utterance);
+  };
+
+  // Helper to format Part of Speech
+  const formatPOS = (pos?: string) => {
+    if (!pos) return '';
+    const p = pos.toLowerCase();
+    if (p.includes('noun')) return 'n.';
+    if (p.includes('verb')) return 'v.';
+    if (p.includes('adj')) return 'adj.';
+    if (p.includes('adv')) return 'adv.';
+    if (p.includes('prep')) return 'prep.';
+    if (p.includes('conj')) return 'conj.';
+    if (p.includes('pron')) return 'pron.';
+    return p;
+  };
+
+  const exportMindMap = () => {
+    if (!svgRef.current) return;
+    
+    const svgElement = svgRef.current;
+    const serializer = new XMLSerializer();
+    let source = serializer.serializeToString(svgElement);
+    
+    // Add name spaces.
+    if(!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)){
+        source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+    }
+    if(!source.match(/^<svg[^>]+"http\:\/\/www\.w3\.org\/1999\/xlink"/)){
+        source = source.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+    }
+
+    // Add xml declaration
+    source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
+    
+    // Convert svg source to URI data scheme.
+    const url = "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(source);
+    
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement("canvas");
+      canvas.width = svgElement.clientWidth || 800;
+      canvas.height = svgElement.clientHeight || 600;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      
+      // Fill white background
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.drawImage(img, 0, 0);
+      
+      const pngUrl = canvas.toDataURL("image/png");
+      const a = document.createElement("a");
+      a.download = `mindmap-${topic || 'export'}.png`;
+      a.href = pngUrl;
+      a.click();
+    };
+    img.src = url;
   };
 
   // D3 Mind Map Rendering
@@ -80,28 +220,43 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
       const svg = d3.select(svgRef.current);
       svg.selectAll("*").remove(); // Clear previous
 
-      const g = svg.append("g").attr("transform", `translate(${width / 2},${height / 2})`);
+      // Add zoom support
+      const zoom = d3.zoom().on("zoom", (e) => {
+        g.attr("transform", e.transform);
+      });
+      svg.call(zoom as any);
+
+      const g = svg.append("g").attr("transform", `translate(80,${height / 2})`);
 
       const root = d3.hierarchy(mindMapData);
       
-      // Create a radial tree layout
+      // Create a horizontal tree layout
       const treeLayout = d3.tree<MindMapNode>()
-        .size([2 * Math.PI, Math.min(width, height) / 2 - 100])
-        .separation((a, b) => (a.parent === b.parent ? 1 : 2) / a.depth);
+        .nodeSize([90, 280]); // height per node, width per level
 
       treeLayout(root);
 
+      // Center the tree vertically
+      let y0 = Infinity;
+      let y1 = -Infinity;
+      root.each(d => {
+        if (d.x > y1) y1 = d.x;
+        if (d.x < y0) y0 = d.x;
+      });
+      
+      g.attr("transform", `translate(100, ${height/2 - (y0 + y1)/2})`);
+
       // Draw links
-      g.selectAll(".link")
+      const link = g.selectAll(".link")
         .data(root.links())
         .enter().append("path")
         .attr("class", "link")
         .attr("fill", "none")
         .attr("stroke", "#cbd5e1")
-        .attr("stroke-width", 1.5)
-        .attr("d", d3.linkRadial<d3.HierarchyPointLink<MindMapNode>, d3.HierarchyPointNode<MindMapNode>>()
-          .angle(d => d.x)
-          .radius(d => d.y)
+        .attr("stroke-width", 2)
+        .attr("d", d3.linkHorizontal<d3.HierarchyPointLink<MindMapNode>, d3.HierarchyPointNode<MindMapNode>>()
+          .x(d => d.y)
+          .y(d => d.x)
         );
 
       // Draw nodes
@@ -109,59 +264,93 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
         .data(root.descendants())
         .enter().append("g")
         .attr("class", "node")
-        .attr("transform", d => `
-          rotate(${d.x * 180 / Math.PI - 90})
-          translate(${d.y},0)
-        `);
+        .attr("transform", d => `translate(${d.y},${d.x})`);
 
-      // Node circles
-      node.append("circle")
-        .attr("r", d => d.depth === 0 ? 30 : d.depth === 1 ? 20 : 10)
-        .attr("fill", d => {
-          if (d.depth === 0) return "#10b981"; // Emerald for root
-          if (d.depth === 1) return "#3b82f6"; // Blue for categories
-          return "#f8fafc"; // White for words
+      // Drag behavior
+      const drag = d3.drag<SVGGElement, d3.HierarchyPointNode<MindMapNode>>()
+        .on("start", function(event, d) {
+          d3.select(this).raise().classed("active", true);
         })
-        .attr("stroke", d => d.depth === 2 ? "#94a3b8" : "none")
-        .attr("stroke-width", 2)
-        .attr("cursor", "pointer")
-        .on("click", (event, d) => {
-            if(d.depth === 2) {
-                setSearchWord(d.data.label);
-                setActiveTab('analysis');
-                analyzeWord(d.data.label);
-            }
+        .on("drag", function(event, d) {
+          d.y += event.dx;
+          d.x += event.dy;
+          d3.select(this).attr("transform", `translate(${d.y},${d.x})`);
+          
+          // Update links
+          link.filter(l => l.source === d || l.target === d)
+            .attr("d", d3.linkHorizontal<d3.HierarchyPointLink<MindMapNode>, d3.HierarchyPointNode<MindMapNode>>()
+              .x(l => l.y)
+              .y(l => l.x)
+            );
+        })
+        .on("end", function(event, d) {
+          d3.select(this).classed("active", false);
         });
 
-      // Node labels
-      node.append("text")
-        .attr("dy", "0.31em")
-        .attr("x", d => d.x < Math.PI === !d.children ? 6 : -6)
-        .attr("text-anchor", d => d.x < Math.PI === !d.children ? "start" : "end")
-        .attr("transform", d => d.x >= Math.PI ? "rotate(180)" : null)
-        .text(d => d.data.label)
-        .attr("font-size", d => d.depth === 0 ? "16px" : d.depth === 1 ? "14px" : "12px")
-        .attr("font-weight", d => d.depth < 2 ? "bold" : "normal")
-        .attr("fill", d => d.depth < 2 ? "#1e293b" : "#475569")
-        .attr("cursor", "pointer")
-        .on("click", (event, d) => {
-            if(d.depth === 2) {
-                setSearchWord(d.data.label);
-                setActiveTab('analysis');
-                analyzeWord(d.data.label);
-            }
+      node.call(drag);
+
+      // Node background (rect)
+      node.append("rect")
+        .attr("rx", 12)
+        .attr("ry", 12)
+        .attr("x", -20)
+        .attr("y", d => d.data.translation ? -30 : -20)
+        .attr("width", d => Math.max(180, d.data.label.length * 9 + (d.data.partOfSpeech ? formatPOS(d.data.partOfSpeech).length * 8 : 0) + 40))
+        .attr("height", d => d.data.translation ? 60 : 40)
+        .attr("fill", d => {
+          if (d.depth === 0) return "#10b981"; // Emerald for root
+          if (d.depth === 1) return "#3b82f6"; // Blue for level 1
+          if (d.depth === 2) return "#8b5cf6"; // Violet for level 2
+          return "#f1f5f9"; // Slate 100 for others
         })
-        .clone(true).lower()
-        .attr("stroke", "white")
-        .attr("stroke-width", 3);
+        .attr("stroke", d => d.depth > 2 ? "#cbd5e1" : "none")
+        .attr("stroke-width", 2)
+        .attr("cursor", "grab")
+        .attr("class", "shadow-sm transition-all hover:brightness-110")
+        .on("click", (event, d) => {
+            if (event.defaultPrevented) return; // dragged
+            handleExpandNode(d.data.id, d.data.label);
+        });
+
+      // Add tooltip for context
+      node.append("title")
+        .text(d => d.data.context ? `Context: ${d.data.context}` : d.data.label);
+
+      // Node text - Main Word and POS
+      node.append("text")
+        .attr("dy", d => d.data.translation ? "-0.2em" : "0.32em")
+        .attr("x", d => (Math.max(180, d.data.label.length * 9 + (d.data.partOfSpeech ? formatPOS(d.data.partOfSpeech).length * 8 : 0) + 40) / 2) - 20)
+        .attr("text-anchor", "middle")
+        .text(d => d.data.label + (d.data.partOfSpeech ? ` (${formatPOS(d.data.partOfSpeech)})` : ''))
+        .attr("font-family", "Inter, sans-serif")
+        .attr("font-size", "14px")
+        .attr("font-weight", d => d.depth < 3 ? "600" : "500")
+        .attr("fill", d => d.depth < 3 ? "#ffffff" : "#334155")
+        .attr("cursor", "grab")
+        .style("pointer-events", "none");
+
+      // Node text - Translation
+      node.append("text")
+        .attr("dy", "1.2em")
+        .attr("x", d => (Math.max(180, d.data.label.length * 9 + (d.data.partOfSpeech ? formatPOS(d.data.partOfSpeech).length * 8 : 0) + 40) / 2) - 20)
+        .attr("text-anchor", "middle")
+        .text(d => d.data.translation || "")
+        .attr("font-family", "Inter, sans-serif")
+        .attr("font-size", "12px")
+        .attr("font-weight", "400")
+        .attr("fill", d => d.depth < 3 ? "rgba(255,255,255,0.8)" : "#64748b")
+        .attr("cursor", "grab")
+        .style("pointer-events", "none");
     }
-  }, [mindMapData, activeTab, analyzeWord]);
+  }, [mindMapData, activeTab, handleExpandNode]);
 
   // Saved Items State
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ correction: '', context: '', category: '', partOfSpeech: '' });
   const [selectedPOS, setSelectedPOS] = useState<string>('All');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'mastery_asc' | 'mastery_desc'>('newest');
 
   const POS_OPTIONS = [
     'Noun (Danh từ)',
@@ -183,6 +372,15 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
   const filteredItems = useMemo(() => {
     let items = savedItems;
     
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      items = items.filter(item => 
+        item.correction.toLowerCase().includes(query) || 
+        item.original.toLowerCase().includes(query) ||
+        item.context.toLowerCase().includes(query)
+      );
+    }
+
     if (selectedCategory !== 'All') {
       if (selectedCategory === 'Uncategorized') {
         items = items.filter(item => !item.category);
@@ -195,8 +393,24 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
       items = items.filter(item => item.partOfSpeech === selectedPOS);
     }
 
+    // Sort
+    items = [...items].sort((a, b) => {
+      switch (sortBy) {
+        case 'newest':
+          return b.timestamp - a.timestamp;
+        case 'oldest':
+          return a.timestamp - b.timestamp;
+        case 'mastery_asc':
+          return (a.masteryScore || 0) - (b.masteryScore || 0);
+        case 'mastery_desc':
+          return (b.masteryScore || 0) - (a.masteryScore || 0);
+        default:
+          return 0;
+      }
+    });
+
     return items;
-  }, [savedItems, selectedCategory, selectedPOS]);
+  }, [savedItems, selectedCategory, selectedPOS, searchQuery, sortBy]);
 
   const handleSaveEdit = (item: SavedItem) => {
     onUpdateItem({ 
@@ -269,6 +483,17 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
         >
           <BookOpen size={18} />
           Practice
+        </button>
+        <button
+          onClick={() => setActiveTab('flashcards')}
+          className={`flex items-center gap-2 px-4 py-3 font-medium text-sm border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === 'flashcards' 
+              ? 'border-emerald-500 text-emerald-600' 
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Library size={18} />
+          Flashcards
         </button>
       </div>
 
@@ -449,36 +674,116 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
 
         {activeTab === 'mindmap' && (
           <div className="h-full flex flex-col">
-            <form onSubmit={handleGenerateMap} className="relative max-w-2xl mx-auto w-full mb-6 shrink-0">
-              <input
-                type="text"
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                placeholder="Enter a topic (e.g., Environment, Technology)..."
-                className="w-full bg-white border border-slate-200 rounded-2xl py-4 pl-12 pr-4 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 shadow-sm text-lg"
-              />
-              <Network className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
-              <button
-                type="submit"
-                disabled={isGeneratingMap || !topic.trim()}
-                className="absolute right-2 top-1/2 -translate-y-1/2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                {isGeneratingMap ? <Loader2 size={18} className="animate-spin" /> : 'Generate Map'}
-              </button>
-            </form>
+            <div className="flex flex-col md:flex-row gap-4 mb-6 shrink-0">
+              <form onSubmit={handleGenerateMap} className="relative flex-1">
+                <input
+                  type="text"
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  placeholder="Enter a root topic (e.g., Family)..."
+                  className="w-full bg-white border border-slate-200 rounded-2xl py-4 pl-12 pr-4 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 shadow-sm text-lg"
+                />
+                <Network className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
+                <button
+                  type="submit"
+                  disabled={isGeneratingMap || !topic.trim()}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isGeneratingMap ? <Loader2 size={18} className="animate-spin" /> : 'Generate Root'}
+                </button>
+              </form>
+
+              {mindMapData && (
+                <form onSubmit={handleAddCustomNode} className="relative flex-1">
+                  <input
+                    type="text"
+                    value={customNodeWord}
+                    onChange={(e) => setCustomNodeWord(e.target.value)}
+                    placeholder="Add custom word (e.g., parent in law)..."
+                    className="w-full bg-white border border-slate-200 rounded-2xl py-4 pl-12 pr-4 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 shadow-sm text-lg"
+                  />
+                  <Plus className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
+                  <button
+                    type="submit"
+                    disabled={isAddingCustomNode || !customNodeWord.trim()}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {isAddingCustomNode ? <Loader2 size={18} className="animate-spin" /> : 'Add Node'}
+                  </button>
+                </form>
+              )}
+            </div>
+
+            {customNodeMessage && (
+              <div className={`mb-4 p-4 rounded-xl flex items-start gap-3 ${
+                customNodeMessage.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                customNodeMessage.type === 'warning' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                'bg-rose-50 text-rose-700 border border-rose-200'
+              }`}>
+                <AlertCircle size={20} className="shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium">{customNodeMessage.text}</p>
+                  {customNodeMessage.type === 'warning' && (
+                    <div className="mt-3 flex gap-3">
+                      <button 
+                        onClick={() => {
+                          setTopic(customNodeWord);
+                          setCustomNodeMessage(null);
+                          setCustomNodeWord('');
+                          // Trigger generate map
+                          const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+                          handleGenerateMap(fakeEvent);
+                        }}
+                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors"
+                      >
+                        Generate new map from "{customNodeWord}"
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setCustomNodeMessage(null);
+                          setCustomNodeWord('');
+                        }}
+                        className="px-3 py-1.5 bg-white hover:bg-amber-100 text-amber-700 border border-amber-200 text-sm font-medium rounded-lg transition-colors"
+                      >
+                        Reject node
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => setCustomNodeMessage(null)} className="text-slate-400 hover:text-slate-600">
+                  <X size={16} />
+                </button>
+              </div>
+            )}
 
             <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden min-h-[500px]">
+              {mindMapData && !isGeneratingMap && !expandingNodeId && (
+                <button
+                  onClick={exportMindMap}
+                  className="absolute top-4 right-4 z-20 bg-white/90 hover:bg-white text-slate-700 border border-slate-200 shadow-sm px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors backdrop-blur-sm"
+                  title="Export as Image"
+                >
+                  <Download size={16} />
+                  Export
+                </button>
+              )}
               {isGeneratingMap ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm z-10">
                   <Loader2 className="animate-spin text-emerald-500 mb-4" size={48} />
                   <p className="text-slate-600 font-medium">Constructing semantic network...</p>
+                </div>
+              ) : expandingNodeId ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/50 backdrop-blur-sm z-10">
+                  <Loader2 className="animate-spin text-blue-500 mb-4" size={48} />
+                  <p className="text-slate-600 font-medium">Expanding node...</p>
                 </div>
               ) : mindMapData ? (
                 <svg ref={svgRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
               ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
                   <Network size={64} className="mb-4 opacity-20" />
-                  <p>Enter a topic above to generate a vocabulary mind map.</p>
+                  <p>Enter a root topic above to generate a vocabulary mind map.</p>
+                  <p className="text-sm mt-2">Click on any node to expand it with more related words!</p>
                 </div>
               )}
             </div>
@@ -487,8 +792,45 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
 
         {activeTab === 'saved' && (
           <div className="max-w-5xl mx-auto space-y-6">
-            {/* Filters */}
+            {/* Filters & Search */}
             <div className="flex flex-col gap-4 mb-6">
+              <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                <div className="relative flex-1 w-full">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search size={18} className="text-slate-400" />
+                  </div>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search saved words, contexts..."
+                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-sm"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                  <span className="text-xs font-bold text-slate-400 uppercase whitespace-nowrap">Sort by:</span>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block w-full p-2.5"
+                  >
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="mastery_desc">Mastery (High to Low)</option>
+                    <option value="mastery_asc">Mastery (Low to High)</option>
+                  </select>
+                </div>
+              </div>
+
               <div>
                 <h4 className="text-xs font-bold text-slate-400 uppercase mb-2">Categories</h4>
                 <div className="flex flex-wrap gap-2">
@@ -608,8 +950,8 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
                             <div className="flex items-center gap-2 mb-1">
                               <h4 className="font-bold text-lg text-slate-900">{item.correction}</h4>
                               {item.partOfSpeech && (
-                                <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-600 text-[10px] font-bold uppercase tracking-wider">
-                                  {item.partOfSpeech}
+                                <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-600 text-xs font-medium">
+                                  {formatPOS(item.partOfSpeech)}
                                 </span>
                               )}
                             </div>
@@ -619,8 +961,26 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
                           </div>
                           <div className="flex items-center gap-1">
                             <button
-                              onClick={() => startEditing(item)}
+                              onClick={() => playAudio(item.correction)}
+                              className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Listen"
+                            >
+                              <Volume2 size={16} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSearchWord(item.correction);
+                                setActiveTab('analysis');
+                                analyzeWord(item.correction);
+                              }}
                               className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                              title="Analyze Word"
+                            >
+                              <BookOpen size={16} />
+                            </button>
+                            <button
+                              onClick={() => startEditing(item)}
+                              className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
                               title="Edit item"
                             >
                               <Edit2 size={16} />
@@ -637,10 +997,54 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
                         
                         <p className="text-sm text-slate-700 mb-4 flex-1 italic">"{item.context}"</p>
                         
-                        <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
-                          <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">
-                            <Tag size={12} />
-                            {item.category || 'Uncategorized'}
+                        {item.explanation && (
+                          <div className="mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                            <p className="text-xs text-slate-600">{item.explanation}</p>
+                          </div>
+                        )}
+
+                        {item.examples && item.examples.length > 0 && (
+                          <div className="mb-4 space-y-2">
+                            <h5 className="text-[10px] font-bold text-slate-400 uppercase">Examples</h5>
+                            <ul className="space-y-2">
+                              {item.examples.slice(0, 2).map((ex, idx) => (
+                                <li key={idx} className="text-xs">
+                                  <p className="text-slate-700 font-medium">"{ex.en}"</p>
+                                  <p className="text-slate-500">{ex.vn}</p>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        <div className="mt-auto pt-4 border-t border-slate-100 flex flex-col gap-3">
+                          {/* Mastery Progress */}
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full rounded-full ${
+                                  (item.masteryScore || 0) >= 80 ? 'bg-emerald-500' :
+                                  (item.masteryScore || 0) >= 50 ? 'bg-amber-500' :
+                                  'bg-rose-500'
+                                }`}
+                                style={{ width: `${Math.max(5, Math.min(100, item.masteryScore || 0))}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-400 w-8 text-right">
+                              {Math.round(item.masteryScore || 0)}%
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">
+                              <Tag size={12} />
+                              {item.category || 'Uncategorized'}
+                            </div>
+                            {item.nextReviewDate && (
+                              <span className="text-[10px] font-medium text-slate-400">
+                                Review: {new Date(item.nextReviewDate).toLocaleDateString()}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </>
@@ -653,7 +1057,11 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
         )}
 
         {activeTab === 'practice' && (
-          <VocabPractice savedItems={savedItems} />
+          <VocabPractice savedItems={savedItems} onUpdateItem={onUpdateItem} />
+        )}
+
+        {activeTab === 'flashcards' && (
+          <Flashcards savedItems={savedItems} onUpdateItem={onUpdateItem} />
         )}
       </div>
     </div>

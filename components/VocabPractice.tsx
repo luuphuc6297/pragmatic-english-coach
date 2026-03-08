@@ -5,9 +5,10 @@ import { generateExercises } from '../services/geminiService';
 
 interface VocabPracticeProps {
   savedItems: SavedItem[];
+  onUpdateItem: (item: SavedItem) => void;
 }
 
-const VocabPractice: React.FC<VocabPracticeProps> = ({ savedItems }) => {
+const VocabPractice: React.FC<VocabPracticeProps> = ({ savedItems, onUpdateItem }) => {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -72,6 +73,20 @@ const VocabPractice: React.FC<VocabPracticeProps> = ({ savedItems }) => {
     setIsSubmitted(true);
     if (correct) {
       setScore(s => s + 1);
+    }
+
+    // Update mastery score
+    const targetItem = savedItems.find(item => item.correction.toLowerCase() === currentExercise.targetWord.toLowerCase());
+    if (targetItem) {
+      const currentScore = targetItem.masteryScore || 0;
+      const newScore = correct 
+        ? Math.min(100, currentScore + 10) 
+        : Math.max(0, currentScore - 5);
+      
+      onUpdateItem({
+        ...targetItem,
+        masteryScore: newScore
+      });
     }
   };
 
