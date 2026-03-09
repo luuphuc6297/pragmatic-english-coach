@@ -1,15 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { ConversationHistory, SavedItem } from '../types';
-
-export interface AppState {
-  hasOnboarded: boolean;
-  userPreferences: any;
-  completedLessons: string[];
-  scoreHistory: number[];
-  savedItems: any[];
-  conversationHistory: any[];
-  currentSession: any;
-}
+import { ConversationHistory, SavedItem, ChatMode, AppState } from '../types';
 
 export const supabaseService = {
   async saveState(userId: string, state: AppState) {
@@ -119,7 +109,7 @@ export const supabaseService = {
 
       return data.map(item => ({
         id: item.conversation_id,
-        mode: item.mode as any,
+        mode: item.mode as ChatMode,
         title: item.title,
         messages: item.messages,
         context: item.context,
@@ -201,7 +191,7 @@ export const supabaseService = {
         id: item.item_id,
         original: item.original,
         correction: item.correction,
-        type: item.type as any,
+        type: item.type as SavedItem['type'],
         context: item.context,
         timestamp: item.timestamp,
         masteryScore: item.mastery_score,

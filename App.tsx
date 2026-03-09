@@ -1,1255 +1,675 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { ChatMessage, LessonContext, UserPreferences, CEFRLevel, ChatMode, StoryScenario, SavedItem, ConversationHistory, PracticeDialogue } from './types';
-import ChatInterface from './components/ChatInterface';
-import Onboarding from './components/Onboarding';
-import UserProfile from './components/UserProfile';
-import SavedItemsModal from './components/SavedItemsModal';
-import ConversationHistoryModal from './components/ConversationHistoryModal';
-import ModeSelection from './components/ModeSelection';
-import Sidebar from './components/Sidebar';
-import ContextPanel from './components/ContextPanel';
-import VocabHub from './components/VocabHub';
-import DialogueList from './components/DialogueList';
-import LiveConversation from './components/LiveConversation';
-import Auth from './components/Auth';
-import { supabase } from './lib/supabase';
-import { supabaseService } from './services/supabaseService';
-import { evaluateResponse, generateNextLesson, generateToneTranslations, generateStoryScenario, evaluateStoryTurn, evaluateQuizAnswer, generateDictionaryExplanation } from './services/geminiService';
-import { Loader2, ArrowLeft, Library, LogOut, Plus } from 'lucide-react';
+import {useState, useMemo, useCallback} from 'react';
+import {
+  ChatMessage,
+  LessonContext,
+  UserPreferences,
+  CEFRLevel,
+  ChatMode,
+  StoryScenario,
+  SavedItem,
+  ConversationHistory,
+  PracticeDialogue,
+  AppState,
+} from './types';
+import ChatInterface from './components/chat';
+import Onboarding from './components/auth/Onboarding';
+import UserProfile from './components/modals/UserProfile';
+import SavedItemsModal from './components/modals/SavedItemsModal';
+import ConversationHistoryModal from './components/modals/ConversationHistoryModal';
+import ModeSelection from './components/layout/ModeSelection';
+import Sidebar from './components/layout/Sidebar';
+import ContextPanel from './components/layout/ContextPanel';
+import VocabHub from './components/vocab/VocabHub';
+import DialogueList from './components/practice/DialogueList';
+import LiveConversation from './components/practice/LiveConversation';
+import Auth from './components/auth/Auth';
+import {supabase} from './lib/supabase';
+import {supabaseService} from './services/supabaseService';
+import {useAuth} from './hooks/useAuth';
+import {usePersistence} from './hooks/usePersistence';
+import {useConversationTracker} from './hooks/useConversationTracker';
+import {useDataLoader} from './hooks/useDataLoader';
+import {useLessonManager} from './hooks/useLessonManager';
+import {useChatHandler} from './hooks/useChatHandler';
+import {useSavedItemsManager} from './hooks/useSavedItemsManager';
+import {Loader2, ArrowLeft, Library, Plus} from 'lucide-react';
+import {styles} from './configs/themeConfig';
 
 const App = () => {
-    const [user, setUser] = useState<any>(null);
-    const [authLoading, setAuthLoading] = useState(true);
+  const {user, authLoading, setAuthLoading} = useAuth();
 
-    useEffect(() => {
-        // Handle OAuth popup callback
-        const isOAuthCallback = window.location.hash.includes('access_token') || window.location.search.includes('code=');
-        
-        if (isOAuthCallback) {
-            if (window.opener) {
-                // Send the full URL to the parent window
-                window.opener.postMessage({ 
-                    type: 'OAUTH_AUTH_SUCCESS', 
-                    url: window.location.href 
-                }, '*');
-                window.close();
-                return;
-            } else {
-                // Process directly if not in a popup
-                const url = new URL(window.location.href);
-                const code = url.searchParams.get('code');
-                if (code) {
-                    supabase.auth.exchangeCodeForSession(code).then(({ data }) => {
-                        if (data?.session) {
-                            setUser(data.session.user);
-                            setAuthLoading(false);
-                        }
-                    });
-                }
-            }
+  const handleDataLoaded = useCallback(
+    (state: AppState | null, history: ConversationHistory[], items: SavedItem[]) => {
+      if (state) {
+        setHasOnboarded(state.hasOnboarded ?? false);
+        setUserPreferences(state.userPreferences ?? null);
+        setCompletedLessons(new Set(state.completedLessons ?? []));
+        setScoreHistory(state.scoreHistory ?? []);
+
+        if (state.currentSession) {
+          setCurrentConversationId(state.currentSession.currentConversationId ?? null);
+          setCurrentLessonIndex(state.currentSession.currentLessonIndex ?? 0);
+          setGeneratedLessons(state.currentSession.generatedLessons ?? []);
+          setCurrentStory(state.currentSession.currentStory ?? null);
+          setCurrentQuizItem(state.currentSession.currentQuizItem ?? null);
+          setCurrentDialogue(state.currentSession.currentDialogue ?? null);
+          setMessages(state.currentSession.messages ?? []);
+          setHintLevel(state.currentSession.hintLevel ?? 0);
+          setChatMode(state.currentSession.chatMode ?? 'roleplay');
+          setSessionStarted(state.currentSession.sessionStarted ?? false);
+          setTranslationDirection(state.currentSession.translationDirection ?? 'VN_to_EN');
+          setTempDifficultyOverride(state.currentSession.tempDifficultyOverride ?? null);
         }
+      }
 
-        // Check active sessions and sets the user
-        supabase.auth.getSession().then(({ data: { session }, error }) => {
-            const localUser = localStorage.getItem('pragmatic_user');
-            if (error) {
-                console.warn('Supabase auth failed, using local storage fallback:', error);
-                if (localUser) {
-                    setUser(JSON.parse(localUser));
-                } else {
-                    setUser(null);
-                }
-            } else {
-                if (localUser) {
-                    setUser(JSON.parse(localUser));
-                } else {
-                    setUser(session?.user ?? null);
-                }
-            }
-            setAuthLoading(false);
-        }).catch((err) => {
-            console.warn('Supabase auth failed, using local storage fallback:', err);
-            const localUser = localStorage.getItem('pragmatic_user');
-            if (localUser) {
-                setUser(JSON.parse(localUser));
-            } else {
-                setUser(null);
-            }
-            setAuthLoading(false);
-        });
+      if (items && items.length > 0) {
+        setSavedItems(items);
+      } else if (state && state.savedItems) {
+        setSavedItems(state.savedItems);
+      }
 
-        // Listen for changes on auth state (logged in, signed out, etc.)
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            const localUser = localStorage.getItem('pragmatic_user');
-            if (localUser) {
-                setUser(JSON.parse(localUser));
-            } else {
-                setUser(session?.user ?? null);
-            }
-        });
+      if (history && history.length > 0) {
+        setConversationHistory(history);
+      } else if (state && state.conversationHistory) {
+        setConversationHistory(state.conversationHistory);
+      }
+    },
+    [],
+  );
 
-        const handleMessage = async (event: MessageEvent) => {
-            if (event.data?.type === 'OAUTH_AUTH_SUCCESS' && event.data.url) {
-                try {
-                    const url = new URL(event.data.url);
-                    const code = url.searchParams.get('code');
-                    
-                    if (code) {
-                        // Exchange the code for a session in the parent window
-                        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-                        if (data?.session) {
-                            setUser(data.session.user);
-                        }
-                    } else if (url.hash.includes('access_token')) {
-                        // Implicit flow fallback
-                        const params = new URLSearchParams(url.hash.substring(1));
-                        const access_token = params.get('access_token');
-                        const refresh_token = params.get('refresh_token');
-                        if (access_token && refresh_token) {
-                            await supabase.auth.setSession({ access_token, refresh_token });
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error processing OAuth callback:', error);
-                }
-                
-                // Fallback check
-                supabase.auth.getSession().then(({ data: { session } }) => {
-                    const localUser = localStorage.getItem('pragmatic_user');
-                    if (localUser) {
-                        setUser(JSON.parse(localUser));
-                    } else {
-                        setUser(session?.user ?? null);
-                    }
-                });
-            }
-        };
-        window.addEventListener('message', handleMessage);
+  const {isDataLoaded} = useDataLoader(user, authLoading, handleDataLoaded);
 
-        return () => {
-            subscription.unsubscribe();
-            window.removeEventListener('message', handleMessage);
-        };
-    }, []);
+  // --- STATE INITIALIZATION WITH LOCAL STORAGE ---
+  const [hasOnboarded, setHasOnboarded] = useState<boolean>(() => {
+    return localStorage.getItem('pec_hasOnboarded') === 'true';
+  });
 
-    const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(() => {
+    const saved = localStorage.getItem('pec_userPreferences');
+    return saved ? JSON.parse(saved) : null;
+  });
 
-    useEffect(() => {
-        const loadData = async () => {
-            if (user) {
-                const [state, history, items] = await Promise.all([
-                    supabaseService.loadState(user.id),
-                    supabaseService.loadHistory(user.id),
-                    supabaseService.loadSavedItems(user.id)
-                ]);
+  const [completedLessons, setCompletedLessons] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('pec_completedLessons');
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
 
-                if (state) {
-                    setHasOnboarded(state.hasOnboarded ?? false);
-                    setUserPreferences(state.userPreferences ?? null);
-                    setCompletedLessons(new Set(state.completedLessons ?? []));
-                    setScoreHistory(state.scoreHistory ?? []);
-                    
-                    if (state.currentSession) {
-                        setCurrentConversationId(state.currentSession.currentConversationId ?? null);
-                        setCurrentLessonIndex(state.currentSession.currentLessonIndex ?? 0);
-                        setGeneratedLessons(state.currentSession.generatedLessons ?? []);
-                        setCurrentStory(state.currentSession.currentStory ?? null);
-                        setCurrentQuizItem(state.currentSession.currentQuizItem ?? null);
-                        setCurrentDialogue(state.currentSession.currentDialogue ?? null);
-                        setMessages(state.currentSession.messages ?? []);
-                        setHintLevel(state.currentSession.hintLevel ?? 0);
-                        setChatMode(state.currentSession.chatMode ?? 'roleplay');
-                        setSessionStarted(state.currentSession.sessionStarted ?? false);
-                        setTranslationDirection(state.currentSession.translationDirection ?? 'VN_to_EN');
-                        setTempDifficultyOverride(state.currentSession.tempDifficultyOverride ?? null);
-                    }
-                }
+  const [scoreHistory, setScoreHistory] = useState<number[]>(() => {
+    const saved = localStorage.getItem('pec_scoreHistory');
+    return saved ? JSON.parse(saved) : [];
+  });
 
-                // If we have data in the new tables, use it. Otherwise fallback to state data (for backward compatibility)
-                if (items && items.length > 0) {
-                    setSavedItems(items);
-                } else if (state && state.savedItems) {
-                    setSavedItems(state.savedItems);
-                }
+  const [savedItems, setSavedItems] = useState<SavedItem[]>(() => {
+    const saved = localStorage.getItem('pec_savedItems');
+    return saved ? JSON.parse(saved) : [];
+  });
 
-                if (history && history.length > 0) {
-                    setConversationHistory(history);
-                } else if (state && state.conversationHistory) {
-                    setConversationHistory(state.conversationHistory);
-                }
-            }
-            setIsDataLoaded(true);
-        };
-        
-        if (user) {
-            loadData();
-        } else if (!authLoading) {
-            setIsDataLoaded(true);
-        }
-    }, [user, authLoading]);
+  const [conversationHistory, setConversationHistory] = useState<ConversationHistory[]>(() => {
+    const saved = localStorage.getItem('pec_conversationHistory');
+    return saved ? JSON.parse(saved) : [];
+  });
 
-    // --- STATE INITIALIZATION WITH LOCAL STORAGE ---
-    const [hasOnboarded, setHasOnboarded] = useState<boolean>(() => {
-        return localStorage.getItem('pec_hasOnboarded') === 'true';
+  const initialSession = useMemo(() => {
+    const saved = localStorage.getItem('pec_currentSession');
+    return saved ? JSON.parse(saved) : null;
+  }, []);
+
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(
+    initialSession?.currentConversationId || null,
+  );
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedModeForHistory, setSelectedModeForHistory] = useState<ChatMode | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const [currentLessonIndex, setCurrentLessonIndex] = useState(
+    initialSession?.currentLessonIndex || 0,
+  );
+  const [generatedLessons, setGeneratedLessons] = useState<LessonContext[]>(
+    initialSession?.generatedLessons || [],
+  );
+  const [currentStory, setCurrentStory] = useState<StoryScenario | null>(
+    initialSession?.currentStory || null,
+  );
+  const [currentQuizItem, setCurrentQuizItem] = useState<SavedItem | null>(
+    initialSession?.currentQuizItem || null,
+  );
+  const [currentDialogue, setCurrentDialogue] = useState<PracticeDialogue | null>(
+    initialSession?.currentDialogue || null,
+  );
+
+  const [messages, setMessages] = useState<ChatMessage[]>(initialSession?.messages || []);
+  const [inputText, setInputText] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [hintLevel, setHintLevel] = useState(initialSession?.hintLevel || 0);
+  const [chatMode, setChatMode] = useState<ChatMode>(initialSession?.chatMode || 'roleplay');
+
+  const [sessionStarted, setSessionStarted] = useState(initialSession?.sessionStarted || false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showSavedItems, setShowSavedItems] = useState(false);
+
+  const isInfiniteMode = true;
+  const [translationDirection, setTranslationDirection] = useState<'VN_to_EN' | 'EN_to_VN'>(
+    initialSession?.translationDirection || 'VN_to_EN',
+  );
+  const [tempDifficultyOverride, setTempDifficultyOverride] = useState<CEFRLevel | null>(
+    initialSession?.tempDifficultyOverride || null,
+  );
+
+  const activeLessonPool = generatedLessons.length > 0 ? generatedLessons : [];
+  const safeIndex = currentLessonIndex % (activeLessonPool.length || 1);
+  const currentLesson = activeLessonPool.length > 0 ? activeLessonPool[safeIndex] : null;
+
+  const averageScore =
+    scoreHistory.length > 0
+      ? (scoreHistory.reduce((a, b) => a + b, 0) / scoreHistory.length).toFixed(1)
+      : '0.0';
+
+  // --- PERSISTENCE & TRACKING ---
+  usePersistence({
+    user,
+    hasOnboarded,
+    userPreferences,
+    completedLessons,
+    scoreHistory,
+    savedItems,
+    conversationHistory,
+    currentConversationId,
+    currentLessonIndex,
+    generatedLessons,
+    currentStory,
+    currentQuizItem,
+    currentDialogue,
+    messages,
+    hintLevel,
+    chatMode,
+    sessionStarted,
+    translationDirection,
+    tempDifficultyOverride,
+  });
+
+  useConversationTracker({
+    messages,
+    currentConversationId,
+    chatMode,
+    currentLesson,
+    currentStory,
+    currentDialogue,
+    setConversationHistory,
+  });
+
+  // --- DOMAIN HOOKS ---
+
+  const {handleSaveItem, handleDeleteItem, handleUpdateItem, handlePracticeItem} =
+    useSavedItemsManager({
+      savedItems,
+      generatedLessons,
+      userPreferences,
+      setSavedItems,
+      setShowSavedItems,
+      setChatMode,
+      setSessionStarted,
+      setIsGenerating,
+      setGeneratedLessons,
+      setCurrentLessonIndex,
+      setMessages,
+      setCurrentConversationId,
     });
 
-    const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(() => {
-        const saved = localStorage.getItem('pec_userPreferences');
-        return saved ? JSON.parse(saved) : null;
+  const {handleStartMode, handleNextLesson, handleSelectStoryContext, handleContinueStory} =
+    useLessonManager({
+      userPreferences,
+      conversationHistory,
+      generatedLessons,
+      savedItems,
+      currentStory,
+      tempDifficultyOverride,
+      chatMode,
+      sessionStarted,
+      setGeneratedLessons,
+      setCurrentLessonIndex,
+      setCurrentStory,
+      setCurrentQuizItem,
+      setCurrentDialogue,
+      setMessages,
+      setCurrentConversationId,
+      setChatMode,
+      setSessionStarted,
+      setInputText,
+      setHintLevel,
+      setIsGenerating,
+      setTempDifficultyOverride,
     });
 
-    const [completedLessons, setCompletedLessons] = useState<Set<string>>(() => {
-        const saved = localStorage.getItem('pec_completedLessons');
-        return saved ? new Set(JSON.parse(saved)) : new Set();
-    });
-
-    const [scoreHistory, setScoreHistory] = useState<number[]>(() => {
-        const saved = localStorage.getItem('pec_scoreHistory');
-        return saved ? JSON.parse(saved) : [];
-    });
-
-    const [savedItems, setSavedItems] = useState<SavedItem[]>(() => {
-        const saved = localStorage.getItem('pec_savedItems');
-        return saved ? JSON.parse(saved) : [];
-    });
-
-    const [conversationHistory, setConversationHistory] = useState<ConversationHistory[]>(() => {
-        const saved = localStorage.getItem('pec_conversationHistory');
-        return saved ? JSON.parse(saved) : [];
-    });
-
-    const initialSession = useMemo(() => {
-        const saved = localStorage.getItem('pec_currentSession');
-        return saved ? JSON.parse(saved) : null;
-    }, []);
-
-    const [currentConversationId, setCurrentConversationId] = useState<string | null>(initialSession?.currentConversationId || null);
-    const [showHistoryModal, setShowHistoryModal] = useState(false);
-    const [selectedModeForHistory, setSelectedModeForHistory] = useState<ChatMode | null>(null);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-    const [currentLessonIndex, setCurrentLessonIndex] = useState(initialSession?.currentLessonIndex || 0);
-    const [generatedLessons, setGeneratedLessons] = useState<LessonContext[]>(initialSession?.generatedLessons || []);
-    const [currentStory, setCurrentStory] = useState<StoryScenario | null>(initialSession?.currentStory || null);
-    const [currentQuizItem, setCurrentQuizItem] = useState<SavedItem | null>(initialSession?.currentQuizItem || null);
-    const [currentDialogue, setCurrentDialogue] = useState<PracticeDialogue | null>(initialSession?.currentDialogue || null);
-
-    const [messages, setMessages] = useState<ChatMessage[]>(initialSession?.messages || []);
-    const [inputText, setInputText] = useState('');
-    const [isLoading, setIsLoading] = useState(false); // For grading/responses
-    const [isGenerating, setIsGenerating] = useState(false); // For new lesson/story generation
-    const [hintLevel, setHintLevel] = useState(initialSession?.hintLevel || 0);
-    const [chatMode, setChatMode] = useState<ChatMode>(initialSession?.chatMode || 'roleplay');
-
-    // State to track if the user has actually started a session (selected a mode)
-    const [sessionStarted, setSessionStarted] = useState(initialSession?.sessionStarted || false);
-    const [showProfile, setShowProfile] = useState(false);
-    const [showSavedItems, setShowSavedItems] = useState(false);
-
-    const isInfiniteMode = true;
-    const [translationDirection, setTranslationDirection] = useState<'VN_to_EN' | 'EN_to_VN'>(initialSession?.translationDirection || 'VN_to_EN');
-    const [tempDifficultyOverride, setTempDifficultyOverride] = useState<CEFRLevel | null>(initialSession?.tempDifficultyOverride || null);
-
-    const activeLessonPool = generatedLessons.length > 0 ? generatedLessons : [];
-    const safeIndex = currentLessonIndex % (activeLessonPool.length || 1);
-    const currentLesson = activeLessonPool.length > 0 ? activeLessonPool[safeIndex] : null;
-
-    const averageScore = scoreHistory.length > 0
-        ? (scoreHistory.reduce((a, b) => a + b, 0) / scoreHistory.length).toFixed(1)
-        : '0.0';
-
-    // --- PERSISTENCE EFFECTS ---
-    useEffect(() => {
-        localStorage.setItem('pec_hasOnboarded', hasOnboarded.toString());
-    }, [hasOnboarded]);
-
-    useEffect(() => {
-        if (userPreferences) {
-            localStorage.setItem('pec_userPreferences', JSON.stringify(userPreferences));
-        }
-    }, [userPreferences]);
-
-    useEffect(() => {
-        localStorage.setItem('pec_completedLessons', JSON.stringify([...completedLessons]));
-    }, [completedLessons]);
-
-    useEffect(() => {
-        localStorage.setItem('pec_scoreHistory', JSON.stringify(scoreHistory));
-    }, [scoreHistory]);
-
-    useEffect(() => {
-        localStorage.setItem('pec_savedItems', JSON.stringify(savedItems));
-    }, [savedItems]);
-
-    useEffect(() => {
-        localStorage.setItem('pec_conversationHistory', JSON.stringify(conversationHistory));
-    }, [conversationHistory]);
-
-    useEffect(() => {
-        const sessionState = {
-            currentConversationId,
-            currentLessonIndex,
-            generatedLessons,
-            currentStory,
-            currentQuizItem,
-            currentDialogue,
-            messages,
-            hintLevel,
-            chatMode,
-            sessionStarted,
-            translationDirection,
-            tempDifficultyOverride
-        };
-        localStorage.setItem('pec_currentSession', JSON.stringify(sessionState));
-    }, [
-        currentConversationId,
-        currentLessonIndex,
-        generatedLessons,
-        currentStory,
-        currentQuizItem,
-        currentDialogue,
-        messages,
-        hintLevel,
-        chatMode,
-        sessionStarted,
-        translationDirection,
-        tempDifficultyOverride
-    ]);
-
-    useEffect(() => {
-        if (user) {
-            const state = {
-                hasOnboarded,
-                userPreferences,
-                completedLessons: Array.from(completedLessons),
-                scoreHistory,
-                savedItems,
-                conversationHistory,
-                currentSession: {
-                    currentConversationId,
-                    currentLessonIndex,
-                    generatedLessons,
-                    currentStory,
-                    currentQuizItem,
-                    currentDialogue,
-                    messages,
-                    hintLevel,
-                    chatMode,
-                    sessionStarted,
-                    translationDirection,
-                    tempDifficultyOverride
-                }
-            };
-            supabaseService.saveState(user.id, state);
-        }
-    }, [
-        user,
-        hasOnboarded,
-        userPreferences,
-        completedLessons,
-        scoreHistory,
-        savedItems,
-        conversationHistory,
-        currentConversationId,
-        currentLessonIndex,
-        generatedLessons,
-        currentStory,
-        currentQuizItem,
-        currentDialogue,
-        messages,
-        hintLevel,
-        chatMode,
-        sessionStarted,
-        translationDirection,
-        tempDifficultyOverride
-    ]);
-
-    useEffect(() => {
-        if (messages.length > 0 && currentConversationId) {
-            setConversationHistory(prev => {
-                const existingIndex = prev.findIndex(h => h.id === currentConversationId);
-
-                let title = 'Conversation';
-                let context: LessonContext | StoryScenario | PracticeDialogue | undefined = undefined;
-
-                if (chatMode === 'roleplay' && currentLesson) {
-                    title = currentLesson.title;
-                    context = currentLesson;
-                } else if (chatMode === 'story' && currentStory) {
-                    title = `Story: ${currentStory.topic}`;
-                    context = currentStory;
-                } else if (chatMode === 'dialogues' && currentDialogue) {
-                    title = `Dialogue: ${currentDialogue.title}`;
-                    context = currentDialogue;
-                } else if (chatMode === 'translator') {
-                    title = 'Translation Session';
-                }
-
-                const updatedHistoryItem: ConversationHistory = {
-                    id: currentConversationId,
-                    mode: chatMode,
-                    timestamp: existingIndex >= 0 ? prev[existingIndex].timestamp : Date.now(),
-                    title,
-                    messages: [...messages],
-                    context
-                };
-
-                if (existingIndex >= 0) {
-                    const newHistory = [...prev];
-                    newHistory[existingIndex] = updatedHistoryItem;
-                    return newHistory;
-                } else {
-                    return [updatedHistoryItem, ...prev];
-                }
-            });
-        }
-    }, [messages, currentConversationId, chatMode, currentLesson, currentStory]);
-
-    // --- HANDLERS ---
-
-    const handleOnboardingComplete = async (prefs: UserPreferences) => {
-        setUserPreferences(prefs);
-        setHasOnboarded(true);
-        setCurrentLessonIndex(0);
-        setTempDifficultyOverride(null);
-    };
-
-    const handleUpdateProfile = (newPrefs: UserPreferences) => {
-        const topicsChanged = JSON.stringify(newPrefs.topics) !== JSON.stringify(userPreferences?.topics);
-        const levelChanged = newPrefs.level !== userPreferences?.level;
-
-        setUserPreferences(newPrefs);
-
-        // If level changed, we might want to reset temp override
-        if (levelChanged) {
-            setTempDifficultyOverride(null);
-        }
-
-        if (topicsChanged || levelChanged) {
-            setGeneratedLessons([]);
-            setCurrentStory(null);
-            setMessages([]);
-            setSessionStarted(false);
-        }
-    };
-
-    const handleSaveItem = async (item: SavedItem) => {
-        if (!savedItems.find(i => i.id === item.id)) {
-            // Initialize SR fields
-            const newItem = {
-                ...item,
-                nextReviewDate: Date.now(), // Due immediately
-                interval: 0,
-                easeFactor: 2.5,
-                reviewCount: 0
-            };
-            // Optimistically add the item
-            setSavedItems(prev => [newItem, ...prev]);
-
-            if (item.type === 'vocabulary') {
-                // Fetch explanation and examples in the background
-                try {
-                    const dictData = await generateDictionaryExplanation(item.correction, item.context);
-                    setSavedItems(prev => prev.map(i =>
-                        i.id === item.id
-                            ? { ...i, explanation: dictData.explanation, examples: dictData.examples, partOfSpeech: dictData.partOfSpeech }
-                            : i
-                    ));
-                } catch (error) {
-                    console.error("Failed to generate dictionary explanation", error);
-                }
-            }
-        }
-    };
-
-    const handleDeleteItem = (id: string) => {
-        setSavedItems(prev => prev.filter(i => i.id !== id));
-    };
-
-    const handleUpdateItem = (updatedItem: SavedItem) => {
-        setSavedItems(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
-    };
-
-    const handlePracticeItem = async (item: SavedItem) => {
-        setShowSavedItems(false);
-        setChatMode('roleplay');
-        setSessionStarted(true);
-
-        // Generate a lesson focused on this item
-        setIsGenerating(true);
-        try {
-            const focusTopic = `Practicing: "${item.correction}"`;
-            const newLesson = await generateNextLesson(
-                generatedLessons.map(l => l.title),
-                userPreferences?.level || 'A1-A2',
-                [focusTopic]
-            );
-            setGeneratedLessons(prev => [...prev, newLesson]);
-            setCurrentLessonIndex(prev => prev + 1);
-
-            // Clear messages to start fresh for practice
-            setMessages([]);
-            setCurrentConversationId(Date.now().toString());
-
-        } catch (e) {
-            console.error("Failed to generate practice lesson", e);
-        } finally {
-            setIsGenerating(false);
-        }
-    };
-
-    const triggerLessonGeneration = async (level: CEFRLevel, topics: string[], direction: 'same' | 'harder' | 'easier') => {
-        setIsGenerating(true);
-        try {
-            // Combine titles from current session and past history
-            const sessionTitles = generatedLessons.map(l => l.title);
-            const historyTitles = conversationHistory
-                .filter(h => h.mode === 'roleplay' && h.context && 'title' in h.context)
-                .map(h => (h.context as LessonContext).title);
-
-            const prevTitles = [...new Set([...sessionTitles, ...historyTitles])];
-
-            const newLesson = await generateNextLesson(
-                prevTitles,
-                level,
-                topics
-            );
-
-            setGeneratedLessons(prev => {
-                const newLessons = [...prev, newLesson];
-                setCurrentLessonIndex(newLessons.length - 1);
-                return newLessons;
-            });
-        } catch (e) {
-            console.error("Failed to generate initial lesson", e);
-        } finally {
-            setIsGenerating(false);
-        }
-    };
-
-    const triggerStoryGeneration = async () => {
-        if (!userPreferences) return;
-        setIsGenerating(true);
-        try {
-            const topic = userPreferences.topics[Math.floor(Math.random() * userPreferences.topics.length)];
-            const level = tempDifficultyOverride || userPreferences.level;
-
-            // Collect previous story topics/titles from conversation history to avoid duplicates
-            const previousStoryTitles = conversationHistory
-                .filter(h => h.mode === 'story' && h.context && 'topic' in h.context)
-                .map(h => (h.context as StoryScenario).topic);
-
-            const story = await generateStoryScenario(level, topic, previousStoryTitles);
-            setCurrentStory(story);
-
-            const openingMsg: ChatMessage = {
-                id: Date.now().toString(),
-                role: 'assistant',
-                content: story.openingLine,
-                storyTranslation: story.openingLineVietnamese,
-                timestamp: Date.now()
-            };
-            setMessages(prev => [...prev, openingMsg]);
-
-        } catch (e) {
-            console.error("Failed to generate story", e);
-        } finally {
-            setIsGenerating(false);
-        }
-    };
-
-    // Main Entry Point for Modes
-    const handleStartMode = async (mode: ChatMode, forceNew: boolean = false) => {
-        if (mode === 'quiz' && savedItems.length === 0) {
-            alert("You need to save some vocabulary or grammar items first before starting a quiz!");
-            return;
-        }
-
-        const isNewSession = !sessionStarted || mode !== chatMode || forceNew;
-
-        setChatMode(mode);
-        setSessionStarted(true);
-
-        if (isNewSession) {
-            setMessages([]);
-            setCurrentConversationId(Date.now().toString());
-            if (mode === 'dialogues') {
-                setCurrentDialogue(null);
-            }
-        }
-        setInputText('');
-        setHintLevel(0);
-
-        if (mode === 'roleplay') {
-            // Check if we already have a lesson to avoid re-generating on quick switches
-            if (generatedLessons.length === 0 || forceNew) {
-                await triggerLessonGeneration(
-                    userPreferences?.level || 'A1-A2',
-                    userPreferences?.topics || ['General'],
-                    'same'
-                );
-            }
-        } else if (mode === 'story') {
-            // Check if we already have a story
-            if (!currentStory || forceNew) {
-                // Do nothing, wait for user to select a context from DialogueList
-                setCurrentStory(null);
-            }
-        } else if (mode === 'quiz' && isNewSession) {
-            // Start the quiz with an item due for review, or the one with the lowest mastery score
-            const now = Date.now();
-            const dueItems = savedItems.filter(item => (item.nextReviewDate || 0) <= now);
-            
-            let selectedItem;
-            if (dueItems.length > 0) {
-                // Sort by how overdue they are
-                dueItems.sort((a, b) => (a.nextReviewDate || 0) - (b.nextReviewDate || 0));
-                selectedItem = dueItems[0];
-            } else {
-                // Fallback to lowest mastery
-                const sortedByMastery = [...savedItems].sort((a, b) => a.masteryScore - b.masteryScore);
-                selectedItem = sortedByMastery[0];
-            }
-
-            setCurrentQuizItem(selectedItem);
-            const quizQuestion: ChatMessage = {
-                id: Date.now().toString(),
-                role: 'assistant',
-                content: `Quiz Time! Let's test your memory.\n\nHow would you correctly say or use this in English?\n\n"${selectedItem.original}"\n\n(Hint: It's related to ${selectedItem.type})`,
-                timestamp: Date.now()
-            };
-            setMessages([quizQuestion]);
-        }
-        // Translator mode needs no initial generation
-    };
-
-    const handleResetSettings = () => {
-        // Clear everything
-        localStorage.removeItem('pec_hasOnboarded');
-        localStorage.removeItem('pec_userPreferences');
-        localStorage.removeItem('pec_completedLessons');
-        localStorage.removeItem('pec_scoreHistory');
-        localStorage.removeItem('pec_conversationHistory');
-        localStorage.removeItem('pec_currentSession');
-
-        setHasOnboarded(false);
-        setSessionStarted(false);
-        setMessages([]);
-        setInputText('');
-        setGeneratedLessons([]);
-        setTempDifficultyOverride(null);
-        setCurrentStory(null);
-        setCurrentDialogue(null);
-        setCompletedLessons(new Set());
-        setScoreHistory([]);
-        setUserPreferences(null);
-        setShowProfile(false);
-        setConversationHistory([]);
-        setCurrentConversationId(null);
-    };
-
-    const handleToggleDirection = () => {
-        setTranslationDirection(prev => prev === 'VN_to_EN' ? 'EN_to_VN' : 'VN_to_EN');
-    };
-
-    const handleSelectStoryContext = async (context: string) => {
-        if (!userPreferences) return;
-        setIsGenerating(true);
-        try {
-            const level = tempDifficultyOverride || userPreferences.level;
-            const previousStoryTitles = conversationHistory
-                .filter(h => h.mode === 'story' && h.context && 'topic' in h.context)
-                .map(h => (h.context as StoryScenario).topic);
-
-            const story = await generateStoryScenario(level, 'Custom Context', previousStoryTitles, context);
-            setCurrentStory(story);
-            setCurrentConversationId(Date.now().toString());
-
-            const openingMsg: ChatMessage = {
-                id: Date.now().toString(),
-                role: 'assistant',
-                content: story.openingLine,
-                storyTranslation: story.openingLineVietnamese,
-                timestamp: Date.now()
-            };
-            setMessages([openingMsg]);
-        } catch (e) {
-            console.error("Failed to generate story from context", e);
-            alert("Failed to start story. Please try again.");
-        } finally {
-            setIsGenerating(false);
-        }
-    };
-
-    const handleContinueStory = (nextReply: string, nextReplyVietnamese?: string) => {
-        const aiMsg: ChatMessage = {
-            id: Date.now().toString(),
-            role: 'assistant',
-            content: nextReply,
-            storyTranslation: nextReplyVietnamese,
-            timestamp: Date.now(),
-        };
-        setMessages(prev => [...prev, aiMsg]);
-    };
-
-    const handleSendMessage = async () => {
-        if (!inputText.trim()) return;
-
-        const userMsg: ChatMessage = {
-            id: Date.now().toString(),
-            role: 'user',
-            content: inputText,
-            timestamp: Date.now(),
-        };
-        setMessages(prev => [...prev, userMsg]);
-        setInputText('');
-        setIsLoading(true);
-
-        try {
-            if (chatMode === 'translator') {
-                const translations = await generateToneTranslations(userMsg.content);
-                const aiMsg: ChatMessage = {
-                    id: (Date.now() + 1).toString(),
-                    role: 'assistant',
-                    content: "Here are 4 ways to say that:",
-                    translation: translations,
-                    timestamp: Date.now(),
-                };
-                setMessages(prev => [...prev, aiMsg]);
-
-            } else if (chatMode === 'story') {
-                if (!currentStory) return;
-                const lastAgentMsg = messages.filter(m => m.role === 'assistant').pop()?.content || currentStory.openingLine;
-                const result = await evaluateStoryTurn(currentStory, lastAgentMsg, userMsg.content);
-
-                const aiMsg: ChatMessage = {
-                    id: (Date.now() + 1).toString(),
-                    role: 'assistant',
-                    content: "",
-                    assessment: result,
-                    timestamp: Date.now(),
-                };
-                setMessages(prev => [...prev, aiMsg]);
-                setScoreHistory(prev => [...prev, result.score]);
-
-            } else if (chatMode === 'quiz') {
-                if (!currentQuizItem) return;
-                const result = await evaluateQuizAnswer(currentQuizItem, userMsg.content);
-
-                const aiMsg: ChatMessage = {
-                    id: (Date.now() + 1).toString(),
-                    role: 'assistant',
-                    content: result.nextAgentReply || "Here is my evaluation:",
-                    assessment: result,
-                    timestamp: Date.now(),
-                };
-                setMessages(prev => [...prev, aiMsg]);
-                setScoreHistory(prev => [...prev, result.score]);
-
-                // Update mastery score and SR fields
-                setSavedItems(prev => prev.map(item => {
-                    if (item.id === currentQuizItem.id) {
-                        // Simplified SuperMemo-2 algorithm
-                        const quality = Math.max(0, Math.min(5, Math.floor(result.score / 2)));
-                        
-                        let newInterval = item.interval || 0;
-                        let newReviewCount = (item.reviewCount || 0) + 1;
-                        let newEaseFactor = (item.easeFactor || 2.5) + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
-                        
-                        if (newEaseFactor < 1.3) newEaseFactor = 1.3;
-                        
-                        if (quality < 3) {
-                            newReviewCount = 0;
-                            newInterval = 1; // Reset interval if failed
-                        } else {
-                            if (newReviewCount === 1) {
-                                newInterval = 1;
-                            } else if (newReviewCount === 2) {
-                                newInterval = 6;
-                            } else {
-                                newInterval = Math.round(newInterval * newEaseFactor);
-                            }
-                        }
-                        
-                        const nextReviewDate = Date.now() + newInterval * 24 * 60 * 60 * 1000;
-
-                        return { 
-                            ...item, 
-                            masteryScore: Math.min(100, item.masteryScore + (result.score * 10)),
-                            interval: newInterval,
-                            easeFactor: newEaseFactor,
-                            reviewCount: newReviewCount,
-                            nextReviewDate: nextReviewDate
-                        };
-                    }
-                    return item;
-                }));
-
-            } else {
-                if (!currentLesson) return;
-                const result = await evaluateResponse(userMsg.content, currentLesson, translationDirection);
-
-                const aiMsg: ChatMessage = {
-                    id: (Date.now() + 1).toString(),
-                    role: 'assistant',
-                    content: "Here is my evaluation of your response:",
-                    assessment: result,
-                    timestamp: Date.now(),
-                };
-                setMessages(prev => [...prev, aiMsg]);
-                setScoreHistory(prev => [...prev, result.score]);
-                if (!completedLessons.has(currentLesson.id)) {
-                    setCompletedLessons(prev => new Set(prev).add(currentLesson.id));
-                }
-            }
-        } catch (error) {
-            console.error("Error processing message", error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleUpdateMessage = (id: string, updates: Partial<ChatMessage>) => {
-        setMessages(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
-    };
-
-    const getNextLevel = (current: CEFRLevel, direction: 'harder' | 'easier'): CEFRLevel => {
-        const levels: CEFRLevel[] = ['A1-A2', 'B1-B2', 'C1-C2'];
-        const idx = levels.indexOf(current);
-        if (idx === -1) return current;
-
-        if (direction === 'harder') {
-            return idx < levels.length - 1 ? levels[idx + 1] : levels[levels.length - 1];
-        } else {
-            return idx > 0 ? levels[idx - 1] : levels[0];
-        }
-    };
-
-    const handleNextLesson = async (direction: 'same' | 'harder' | 'easier' = 'same') => {
-        // Add system separator instead of clearing
-        const separatorMsg: ChatMessage = {
-            id: Date.now().toString(),
-            role: 'system',
-            content: direction === 'same' ? '--- Next Scenario ---' : `--- ${direction === 'harder' ? 'Increasing Difficulty' : 'Decreasing Difficulty'} ---`,
-            timestamp: Date.now()
-        };
-        setMessages(prev => [...prev, separatorMsg]);
-
-        setHintLevel(0);
-        setInputText('');
-
-        let nextDifficulty = tempDifficultyOverride || userPreferences?.level || 'A1-A2';
-        if (direction !== 'same') {
-            nextDifficulty = getNextLevel(nextDifficulty, direction);
-            setTempDifficultyOverride(nextDifficulty);
-        }
-
-        if (chatMode === 'story') {
-            await triggerStoryGeneration();
-        } else if (chatMode === 'dialogues') {
-            setCurrentDialogue(null);
-            // Remove the separator message since we are going back to the list
-            setMessages(prev => prev.filter(m => m.id !== separatorMsg.id));
-        } else if (chatMode === 'quiz') {
-            const now = Date.now();
-            const dueItems = savedItems.filter(item => (item.nextReviewDate || 0) <= now);
-            
-            let selectedItem;
-            if (dueItems.length > 0) {
-                dueItems.sort((a, b) => (a.nextReviewDate || 0) - (b.nextReviewDate || 0));
-                selectedItem = dueItems[0];
-            } else {
-                const sortedByMastery = [...savedItems].sort((a, b) => a.masteryScore - b.masteryScore);
-                selectedItem = sortedByMastery[0];
-            }
-
-            setCurrentQuizItem(selectedItem);
-            const quizQuestion: ChatMessage = {
-                id: Date.now().toString(),
-                role: 'assistant',
-                content: `Next Question!\n\nHow would you correctly say or use this in English?\n\n"${selectedItem.original}"\n\n(Hint: It's related to ${selectedItem.type})`,
-                timestamp: Date.now()
-            };
-            setMessages(prev => [...prev, quizQuestion]);
-        } else {
-            // Only trigger if we are in Roleplay. If we are in translator, we don't need to generate.
-            if (chatMode === 'roleplay') {
-                await triggerLessonGeneration(nextDifficulty, userPreferences?.topics || ['General'], direction);
-
-                // Add a prompt message from the assistant so the user knows the new scenario is ready
-                const promptMsg: ChatMessage = {
-                    id: Date.now().toString() + '_prompt',
-                    role: 'assistant',
-                    content: "I've prepared a new scenario for you! Please check the context on the left and type your first response to start.",
-                    timestamp: Date.now() + 1
-                };
-                setMessages(prev => [...prev, promptMsg]);
-            }
-        }
-    };
-
-    const handleRestoreConversation = (item: ConversationHistory) => {
-        setChatMode(item.mode);
-        setMessages(item.messages);
-        setCurrentConversationId(item.id);
-        if (item.mode === 'roleplay' && item.context) {
-            const lesson = item.context as LessonContext;
-            setGeneratedLessons(prev => {
-                if (prev.findIndex(l => l.id === lesson.id) >= 0) return prev;
-                return [...prev, lesson];
-            });
-            const existingIndex = generatedLessons.findIndex(l => l.id === lesson.id);
-            setCurrentLessonIndex(existingIndex >= 0 ? existingIndex : generatedLessons.length);
-        } else if (item.mode === 'story' && item.context) {
-            setCurrentStory(item.context as StoryScenario);
-        } else if (item.mode === 'dialogues' && item.context) {
-            setCurrentDialogue(item.context as PracticeDialogue);
-        }
-        setSessionStarted(true);
-    };
-
-    // RENDER: Auth
-    if (authLoading || (user && !isDataLoaded)) {
-        return (
-            <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 gap-4">
-                <Loader2 className="animate-spin text-brand-500" size={48} />
-                <p className="text-slate-500 font-medium">Loading your progress...</p>
-            </div>
-        );
+  const {handleSendMessage, handleUpdateMessage} = useChatHandler({
+    inputText,
+    chatMode,
+    currentStory,
+    currentQuizItem,
+    currentLesson,
+    messages,
+    completedLessons,
+    translationDirection,
+    setMessages,
+    setInputText,
+    setIsLoading,
+    setScoreHistory,
+    setCompletedLessons,
+    setSavedItems,
+  });
+
+  // --- LOCAL HANDLERS ---
+
+  const handleOnboardingComplete = (prefs: UserPreferences) => {
+    setUserPreferences(prefs);
+    setHasOnboarded(true);
+    setCurrentLessonIndex(0);
+    setTempDifficultyOverride(null);
+  };
+
+  const handleUpdateProfile = (newPrefs: UserPreferences) => {
+    const topicsChanged =
+      JSON.stringify(newPrefs.topics) !== JSON.stringify(userPreferences?.topics);
+    const levelChanged = newPrefs.level !== userPreferences?.level;
+
+    setUserPreferences(newPrefs);
+
+    if (levelChanged) {
+      setTempDifficultyOverride(null);
     }
 
-    if (!user) {
-        return <Auth onSuccess={() => {}} />;
+    if (topicsChanged || levelChanged) {
+      setGeneratedLessons([]);
+      setCurrentStory(null);
+      setMessages([]);
+      setSessionStarted(false);
     }
+  };
 
-    // RENDER: Onboarding
-    if (!hasOnboarded) {
-        return <Onboarding onComplete={handleOnboardingComplete} />;
+  const handleResetSettings = () => {
+    localStorage.removeItem('pec_hasOnboarded');
+    localStorage.removeItem('pec_userPreferences');
+    localStorage.removeItem('pec_completedLessons');
+    localStorage.removeItem('pec_scoreHistory');
+    localStorage.removeItem('pec_conversationHistory');
+    localStorage.removeItem('pec_currentSession');
+
+    setHasOnboarded(false);
+    setSessionStarted(false);
+    setMessages([]);
+    setInputText('');
+    setGeneratedLessons([]);
+    setTempDifficultyOverride(null);
+    setCurrentStory(null);
+    setCurrentDialogue(null);
+    setCompletedLessons(new Set());
+    setScoreHistory([]);
+    setUserPreferences(null);
+    setShowProfile(false);
+    setConversationHistory([]);
+    setCurrentConversationId(null);
+  };
+
+  const handleToggleDirection = () => {
+    setTranslationDirection((prev) => (prev === 'VN_to_EN' ? 'EN_to_VN' : 'VN_to_EN'));
+  };
+
+  const handleRestoreConversation = (item: ConversationHistory) => {
+    setChatMode(item.mode);
+    setMessages(item.messages);
+    setCurrentConversationId(item.id);
+    if (item.mode === 'roleplay' && item.context) {
+      const lesson = item.context as LessonContext;
+      setGeneratedLessons((prev) => {
+        if (prev.findIndex((l) => l.id === lesson.id) >= 0) return prev;
+        return [...prev, lesson];
+      });
+      const existingIndex = generatedLessons.findIndex((l) => l.id === lesson.id);
+      setCurrentLessonIndex(existingIndex >= 0 ? existingIndex : generatedLessons.length);
+    } else if (item.mode === 'story' && item.context) {
+      setCurrentStory(item.context as StoryScenario);
+    } else if (item.mode === 'dialogues' && item.context) {
+      setCurrentDialogue(item.context as PracticeDialogue);
     }
+    setSessionStarted(true);
+  };
 
-    const handleSignOut = async () => {
-        setAuthLoading(true);
-        try {
-            await supabase.auth.signOut();
-        } catch (error) {
-            console.error('Error signing out:', error);
-        } finally {
-            localStorage.clear();
-            setHasOnboarded(false);
-            setUserPreferences(null);
-            setCompletedLessons(new Set());
-            setScoreHistory([]);
-            setSavedItems([]);
-            setConversationHistory([]);
-            setCurrentConversationId(null);
-            setMessages([]);
-            setSessionStarted(false);
-            setGeneratedLessons([]);
-            setCurrentStory(null);
-            setCurrentQuizItem(null);
-            setCurrentDialogue(null);
-            setTempDifficultyOverride(null);
-            setShowProfile(false);
-            setAuthLoading(false);
-        }
-    };
-
-    if (!sessionStarted) {
-        return (
-            <>
-                <ModeSelection
-                    userPreferences={userPreferences}
-                    onStartMode={(mode) => {
-                        if (mode === 'vocab_hub' || mode === 'translator' || mode === 'quiz') {
-                            handleStartMode(mode);
-                        } else {
-                            setSelectedModeForHistory(mode);
-                            setShowHistoryModal(true);
-                        }
-                    }}
-                    onShowHistory={() => {
-                        setSelectedModeForHistory(null);
-                        setShowHistoryModal(true);
-                    }}
-                    onResetSettings={handleResetSettings}
-                    showProfile={showProfile}
-                    onToggleProfile={setShowProfile}
-                    onSaveProfile={handleUpdateProfile}
-                    profileStats={{
-                        lessonsCompleted: completedLessons.size,
-                        averageScore: averageScore,
-                        totalMessages: messages.length,
-                    }}
-                    onSignOut={handleSignOut}
-                />
-                
-                {/* History Modal */}
-                {showHistoryModal && (
-                    <ConversationHistoryModal
-                        history={conversationHistory}
-                        modeFilter={selectedModeForHistory || undefined}
-                        onStartNew={(mode) => {
-                            setShowHistoryModal(false);
-                            setSelectedModeForHistory(null);
-                            handleStartMode(mode, true);
-                        }}
-                        onClose={() => {
-                            setShowHistoryModal(false);
-                            setSelectedModeForHistory(null);
-                        }}
-                        onSelect={(item) => {
-                            handleRestoreConversation(item);
-                            setShowHistoryModal(false);
-                            setSelectedModeForHistory(null);
-                        }}
-                        onDelete={(id) => {
-                            setConversationHistory(prev => prev.filter(h => h.id !== id));
-                            if (currentConversationId === id) {
-                                setCurrentConversationId(null);
-                                setMessages([]);
-                                setSessionStarted(false);
-                            }
-                        }}
-                    />
-                )}
-            </>
-        );
+  const handleSignOut = async () => {
+    setAuthLoading(true);
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    } finally {
+      localStorage.clear();
+      setHasOnboarded(false);
+      setUserPreferences(null);
+      setCompletedLessons(new Set());
+      setScoreHistory([]);
+      setSavedItems([]);
+      setConversationHistory([]);
+      setCurrentConversationId(null);
+      setMessages([]);
+      setSessionStarted(false);
+      setGeneratedLessons([]);
+      setCurrentStory(null);
+      setCurrentQuizItem(null);
+      setCurrentDialogue(null);
+      setTempDifficultyOverride(null);
+      setShowProfile(false);
+      setAuthLoading(false);
     }
+  };
 
-    // RENDER: Loading State (Generating Content)
-    if (isGenerating && (!currentLesson || (chatMode === 'story' && !currentStory))) {
-        return (
-            <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-900 text-white gap-4">
-                <Loader2 className="animate-spin text-brand-400" size={48} />
-                <div className="text-center">
-                    <h2 className="text-xl font-bold">
-                        {chatMode === 'story' ? 'Preparing Scenario' : 'Designing Lesson'}
-                    </h2>
-                    <p className="text-slate-400 text-sm mt-1">
-                        {chatMode === 'story' ? 'Setting the scene for you...' : 'Crafting a realistic situation...'}
-                    </p>
-                </div>
-            </div>
-        );
+  const handleSyncHistory = async () => {
+    if (user && conversationHistory.length > 0) {
+      await supabaseService.syncHistory(user.id, conversationHistory);
     }
+  };
 
-    const handleSyncHistory = async () => {
-        if (user && conversationHistory.length > 0) {
-            await supabaseService.syncHistory(user.id, conversationHistory);
-        }
-    };
+  const handleSyncSavedItems = async () => {
+    if (user && savedItems.length > 0) {
+      await supabaseService.syncSavedItems(user.id, savedItems);
+    }
+  };
 
-    const handleSyncSavedItems = async () => {
-        if (user && savedItems.length > 0) {
-            await supabaseService.syncSavedItems(user.id, savedItems);
-        }
-    };
+  const handleDeleteConversation = (id: string) => {
+    setConversationHistory((prev) => prev.filter((h) => h.id !== id));
+    if (currentConversationId === id) {
+      setCurrentConversationId(null);
+      setMessages([]);
+      setSessionStarted(false);
+    }
+  };
 
-    // RENDER: Main App Interface
+  const handleModeSwitch = (mode: ChatMode) => {
+    if (mode === 'vocab_hub' || mode === 'translator' || mode === 'quiz') {
+      handleStartMode(mode);
+    } else {
+      setSelectedModeForHistory(mode);
+      setShowHistoryModal(true);
+    }
+  };
+
+  const handleCloseHistoryModal = () => {
+    setShowHistoryModal(false);
+    setSelectedModeForHistory(null);
+  };
+
+  const handleSelectFromHistory = (item: ConversationHistory) => {
+    handleRestoreConversation(item);
+    setShowHistoryModal(false);
+    setSelectedModeForHistory(null);
+  };
+
+  const handleStartNewFromHistory = (mode: ChatMode) => {
+    setShowHistoryModal(false);
+    setSelectedModeForHistory(null);
+    handleStartMode(mode, true);
+  };
+
+  // --- RENDER ---
+
+  if (authLoading || (user && !isDataLoaded)) {
     return (
-        <div className="flex h-screen bg-slate-900 overflow-hidden relative">
-
-            <Sidebar
-                isOpen={isSidebarOpen}
-                onClose={() => setIsSidebarOpen(false)}
-                history={conversationHistory.filter(h => h.mode === chatMode)}
-                activeConversationId={currentConversationId}
-                onSelectConversation={handleRestoreConversation}
-                onSyncHistory={handleSyncHistory}
-                onStartNew={() => handleStartMode(chatMode, true)}
-                onShowAllHistory={() => {
-                    setSelectedModeForHistory(null);
-                    setShowHistoryModal(true);
-                }}
-            />
-
-            {showProfile && userPreferences && (
-                <UserProfile
-                    preferences={userPreferences}
-                    stats={{
-                        lessonsCompleted: completedLessons.size,
-                        averageScore: averageScore,
-                        totalMessages: messages.length,
-                    }}
-                    onClose={() => setShowProfile(false)}
-                    onSave={handleUpdateProfile}
-                    onLogout={handleSignOut}
-                />
-            )}
-
-            <ContextPanel
-                chatMode={chatMode}
-                currentLesson={currentLesson}
-                currentStory={currentStory}
-                currentDialogue={currentDialogue}
-                safeIndex={safeIndex}
-                isCurrentLessonCompleted={currentLesson ? completedLessons.has(currentLesson.id) : false}
-                translationDirection={translationDirection}
-                onToggleDirection={handleToggleDirection}
-                hintLevel={hintLevel}
-                onRequestHint={() => setHintLevel(prev => Math.min(prev + 1, 3))}
-                onResetHint={() => setHintLevel(0)}
-                isGenerating={isGenerating}
-                isInfiniteMode={isInfiniteMode}
-                userName={userPreferences?.name}
-                averageScore={averageScore}
-                onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-                onBack={() => setSessionStarted(false)}
-                onShowProfile={() => setShowProfile(true)}
-                onShowHistory={() => {
-                    setSelectedModeForHistory(chatMode);
-                    setShowHistoryModal(true);
-                }}
-                onNextLesson={handleNextLesson}
-                onStartNew={() => handleStartMode(chatMode, true)}
-            />
-
-            {/* RIGHT: Chat Interface or Vocab Hub */}
-            {/* Takes remaining space (flex-1), effectively ~60% */}
-            <div className="flex-1 flex flex-col h-full bg-slate-50">
-                <div className="md:hidden h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 sticky top-0 z-10">
-                    <div className="flex items-center gap-2">
-                        <button onClick={() => setSessionStarted(false)} className="p-1 -ml-2 text-slate-500">
-                            <ArrowLeft size={20} />
-                        </button>
-                        <div className="flex flex-col">
-                            <span className="font-bold text-slate-800 truncate text-sm w-32">
-                                {isGenerating ? 'Loading...' : (chatMode === 'story' ? currentStory?.topic : chatMode === 'roleplay' ? currentLesson?.title : chatMode === 'vocab_hub' ? 'Vocab Hub' : chatMode === 'dialogues' ? currentDialogue?.title || 'Practice Dialogues' : 'Translator')}
-                            </span>
-                            <span className="text-[10px] text-slate-500">Avg: {averageScore}</span>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => handleStartMode(chatMode, true)}
-                            disabled={isGenerating}
-                            className="p-2 text-slate-400 hover:text-brand-600"
-                            title="New Conversation"
-                        >
-                            <Plus size={20} />
-                        </button>
-                        <button
-                            onClick={() => setShowSavedItems(true)}
-                            className="p-2 text-slate-400 hover:text-brand-600"
-                        >
-                            <Library size={20} />
-                        </button>
-                        {chatMode !== 'translator' && chatMode !== 'vocab_hub' && (
-                            <button
-                                onClick={() => handleNextLesson('same')}
-                                disabled={isGenerating}
-                                className="text-xs font-bold text-brand-600 px-3 py-1 bg-brand-50 rounded-full"
-                            >
-                                Next
-                            </button>
-                        )}
-                    </div>
-                </div>
-
-                <div className="flex-1 overflow-hidden relative">
-                    {/* Header Actions (Desktop) */}
-                    <div className="hidden md:flex absolute top-4 right-6 z-40 gap-2">
-                        <button
-                            onClick={() => setShowSavedItems(true)}
-                            className="p-2 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-full text-slate-400 hover:text-brand-600 hover:border-brand-200 shadow-sm transition-all"
-                            title="Saved Items"
-                        >
-                            <Library size={20} />
-                        </button>
-                    </div>
-                    {chatMode === 'live' ? (
-                        <LiveConversation
-                            userLevel={userPreferences?.level || 'A1-A2'}
-                            onBack={() => setSessionStarted(false)}
-                        />
-                    ) : chatMode === 'vocab_hub' ? (
-                        <VocabHub 
-                            userLevel={userPreferences?.level || 'A1-A2'} 
-                            savedItems={savedItems}
-                            onUpdateItem={handleUpdateItem}
-                            onDeleteItem={handleDeleteItem}
-                        />
-                    ) : chatMode === 'story' && !currentStory ? (
-                        <DialogueList 
-                            onSelect={handleSelectStoryContext}
-                            onBack={() => setSessionStarted(false)}
-                            userLevel={userPreferences?.level || 'A1-A2'}
-                        />
-                    ) : (
-                        <ChatInterface
-                            messages={messages}
-                            inputText={inputText}
-                            setInputText={setInputText}
-                            onSend={handleSendMessage}
-                            onUpdateMessage={handleUpdateMessage}
-                            onNextLesson={handleNextLesson}
-                            isLoading={isLoading || isGenerating}
-                            currentSituation={chatMode === 'story' ? currentStory?.situation : chatMode === 'dialogues' ? currentDialogue?.scenario : currentLesson?.situation}
-                            chatMode={chatMode}
-                            setChatMode={(mode) => {
-                                if (mode === 'vocab_hub' || mode === 'translator' || mode === 'quiz') {
-                                    handleStartMode(mode);
-                                } else {
-                                    setSelectedModeForHistory(mode);
-                                    setShowHistoryModal(true);
-                                }
-                            }}
-                            onContinueStory={handleContinueStory}
-                            savedItems={savedItems}
-                            onSaveItem={handleSaveItem}
-                            currentLesson={currentLesson}
-                            translationDirection={translationDirection}
-                            onToggleDirection={handleToggleDirection}
-                            onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-                            onReturnToModes={() => setSessionStarted(false)}
-                            userName={userPreferences?.name}
-                        />
-                    )}
-                </div>
-            </div>
-
-            {/* Saved Items Modal */}
-            {showSavedItems && (
-                <SavedItemsModal
-                    items={savedItems}
-                    onClose={() => setShowSavedItems(false)}
-                    onDelete={handleDeleteItem}
-                    onPractice={handlePracticeItem}
-                    onSync={handleSyncSavedItems}
-                />
-            )}
-
-            {/* History Modal */}
-            {showHistoryModal && (
-                <ConversationHistoryModal
-                    history={conversationHistory}
-                    modeFilter={selectedModeForHistory || undefined}
-                    onStartNew={(mode) => {
-                        setShowHistoryModal(false);
-                        setSelectedModeForHistory(null);
-                        handleStartMode(mode, true);
-                    }}
-                    onClose={() => {
-                        setShowHistoryModal(false);
-                        setSelectedModeForHistory(null);
-                    }}
-                    onSelect={(item) => {
-                        handleRestoreConversation(item);
-                        setShowHistoryModal(false);
-                        setSelectedModeForHistory(null);
-                    }}
-                    onDelete={(id) => {
-                        setConversationHistory(prev => prev.filter(h => h.id !== id));
-                        if (currentConversationId === id) {
-                            setCurrentConversationId(null);
-                            setMessages([]);
-                            setSessionStarted(false);
-                        }
-                    }}
-                />
-            )}
-        </div>
+      <div className={styles.layout.screenLight}>
+        <Loader2 className="animate-spin text-brand-500" size={48} />
+        <p className="text-slate-500 font-medium">Loading your progress...</p>
+      </div>
     );
+  }
+
+  if (!user) {
+    return <Auth onSuccess={() => {}} />;
+  }
+
+  if (!hasOnboarded) {
+    return <Onboarding onComplete={handleOnboardingComplete} />;
+  }
+
+  if (!sessionStarted) {
+    return (
+      <>
+        <ModeSelection
+          userPreferences={userPreferences}
+          onStartMode={handleModeSwitch}
+          onShowHistory={() => {
+            setSelectedModeForHistory(null);
+            setShowHistoryModal(true);
+          }}
+          onResetSettings={handleResetSettings}
+          showProfile={showProfile}
+          onToggleProfile={setShowProfile}
+          onSaveProfile={handleUpdateProfile}
+          profileStats={{
+            lessonsCompleted: completedLessons.size,
+            averageScore: averageScore,
+            totalMessages: messages.length,
+          }}
+          onSignOut={handleSignOut}
+        />
+
+        {showHistoryModal && (
+          <ConversationHistoryModal
+            history={conversationHistory}
+            modeFilter={selectedModeForHistory || undefined}
+            onStartNew={handleStartNewFromHistory}
+            onClose={handleCloseHistoryModal}
+            onSelect={handleSelectFromHistory}
+            onDelete={handleDeleteConversation}
+          />
+        )}
+      </>
+    );
+  }
+
+  if (isGenerating && (!currentLesson || (chatMode === 'story' && !currentStory))) {
+    return (
+      <div className={styles.layout.screenDark}>
+        <Loader2 className="animate-spin text-brand-400" size={48} />
+        <div className="text-center">
+          <h2 className="text-xl font-bold">
+            {chatMode === 'story' ? 'Preparing Scenario' : 'Designing Lesson'}
+          </h2>
+          <p className="text-slate-400 text-sm mt-1">
+            {chatMode === 'story'
+              ? 'Setting the scene for you...'
+              : 'Crafting a realistic situation...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen bg-slate-900 overflow-hidden relative">
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        history={conversationHistory.filter((h) => h.mode === chatMode)}
+        activeConversationId={currentConversationId}
+        onSelectConversation={handleRestoreConversation}
+        onSyncHistory={handleSyncHistory}
+        onStartNew={() => handleStartMode(chatMode, true)}
+        onShowAllHistory={() => {
+          setSelectedModeForHistory(null);
+          setShowHistoryModal(true);
+        }}
+      />
+
+      {showProfile && userPreferences && (
+        <UserProfile
+          preferences={userPreferences}
+          stats={{
+            lessonsCompleted: completedLessons.size,
+            averageScore: averageScore,
+            totalMessages: messages.length,
+          }}
+          onClose={() => setShowProfile(false)}
+          onSave={handleUpdateProfile}
+          onLogout={handleSignOut}
+        />
+      )}
+
+      <ContextPanel
+        chatMode={chatMode}
+        currentLesson={currentLesson}
+        currentStory={currentStory}
+        currentDialogue={currentDialogue}
+        safeIndex={safeIndex}
+        isCurrentLessonCompleted={currentLesson ? completedLessons.has(currentLesson.id) : false}
+        translationDirection={translationDirection}
+        onToggleDirection={handleToggleDirection}
+        hintLevel={hintLevel}
+        onRequestHint={() => setHintLevel((prev) => Math.min(prev + 1, 3))}
+        onResetHint={() => setHintLevel(0)}
+        isGenerating={isGenerating}
+        isInfiniteMode={isInfiniteMode}
+        userName={userPreferences?.name}
+        averageScore={averageScore}
+        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        onBack={() => setSessionStarted(false)}
+        onShowProfile={() => setShowProfile(true)}
+        onShowHistory={() => {
+          setSelectedModeForHistory(chatMode);
+          setShowHistoryModal(true);
+        }}
+        onNextLesson={handleNextLesson}
+        onStartNew={() => handleStartMode(chatMode, true)}
+      />
+
+      <div className="flex-1 flex flex-col h-full bg-slate-50">
+        <div className={styles.layout.mobileHeader}>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setSessionStarted(false)} className="p-1 -ml-2 text-slate-500">
+              <ArrowLeft size={20} />
+            </button>
+            <div className="flex flex-col">
+              <span className="font-bold text-slate-800 truncate text-sm w-32">
+                {isGenerating
+                  ? 'Loading...'
+                  : chatMode === 'story'
+                    ? currentStory?.topic
+                    : chatMode === 'roleplay'
+                      ? currentLesson?.title
+                      : chatMode === 'vocab_hub'
+                        ? 'Vocab Hub'
+                        : chatMode === 'dialogues'
+                          ? currentDialogue?.title || 'Practice Dialogues'
+                          : 'Translator'}
+              </span>
+              <span className="text-[10px] text-slate-500">Avg: {averageScore}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleStartMode(chatMode, true)}
+              disabled={isGenerating}
+              className="p-2 text-slate-400 hover:text-brand-600"
+              title="New Conversation"
+            >
+              <Plus size={20} />
+            </button>
+            <button
+              onClick={() => setShowSavedItems(true)}
+              className="p-2 text-slate-400 hover:text-brand-600"
+            >
+              <Library size={20} />
+            </button>
+            {chatMode !== 'translator' && chatMode !== 'vocab_hub' && (
+              <button
+                onClick={() => handleNextLesson('same')}
+                disabled={isGenerating}
+                className="text-xs font-bold text-brand-600 px-3 py-1 bg-brand-50 rounded-full"
+              >
+                Next
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-hidden relative">
+          <div className="hidden md:flex absolute top-4 right-6 z-40 gap-2">
+            <button
+              onClick={() => setShowSavedItems(true)}
+              className="p-2 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-full text-slate-400 hover:text-brand-600 hover:border-brand-200 shadow-sm transition-all"
+              title="Saved Items"
+            >
+              <Library size={20} />
+            </button>
+          </div>
+          {chatMode === 'live' ? (
+            <LiveConversation
+              userLevel={userPreferences?.level || 'A1-A2'}
+              onBack={() => setSessionStarted(false)}
+            />
+          ) : chatMode === 'vocab_hub' ? (
+            <VocabHub
+              userLevel={userPreferences?.level || 'A1-A2'}
+              savedItems={savedItems}
+              onUpdateItem={handleUpdateItem}
+              onDeleteItem={handleDeleteItem}
+            />
+          ) : chatMode === 'story' && !currentStory ? (
+            <DialogueList
+              onSelect={handleSelectStoryContext}
+              onBack={() => setSessionStarted(false)}
+              userLevel={userPreferences?.level || 'A1-A2'}
+            />
+          ) : (
+            <ChatInterface
+              messages={messages}
+              inputText={inputText}
+              setInputText={setInputText}
+              onSend={handleSendMessage}
+              onUpdateMessage={handleUpdateMessage}
+              onNextLesson={handleNextLesson}
+              isLoading={isLoading || isGenerating}
+              currentSituation={
+                chatMode === 'story'
+                  ? currentStory?.situation
+                  : chatMode === 'dialogues'
+                    ? currentDialogue?.scenario
+                    : currentLesson?.situation
+              }
+              chatMode={chatMode}
+              setChatMode={handleModeSwitch}
+              onContinueStory={handleContinueStory}
+              savedItems={savedItems}
+              onSaveItem={handleSaveItem}
+              currentLesson={currentLesson}
+              translationDirection={translationDirection}
+              onToggleDirection={handleToggleDirection}
+              onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+              onReturnToModes={() => setSessionStarted(false)}
+              userName={userPreferences?.name}
+            />
+          )}
+        </div>
+      </div>
+
+      {showSavedItems && (
+        <SavedItemsModal
+          items={savedItems}
+          onClose={() => setShowSavedItems(false)}
+          onDelete={handleDeleteItem}
+          onPractice={handlePracticeItem}
+          onSync={handleSyncSavedItems}
+        />
+      )}
+
+      {showHistoryModal && (
+        <ConversationHistoryModal
+          history={conversationHistory}
+          modeFilter={selectedModeForHistory || undefined}
+          onStartNew={handleStartNewFromHistory}
+          onClose={handleCloseHistoryModal}
+          onSelect={handleSelectFromHistory}
+          onDelete={handleDeleteConversation}
+        />
+      )}
+    </div>
+  );
 };
 
 export default App;
