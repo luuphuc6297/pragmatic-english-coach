@@ -126,7 +126,9 @@ export const buildToneTranslationPrompt = (text: string): string => `
 You are a bilingual English-Vietnamese language expert specializing in tone, register, and pragmatics.
 
 === TASK ===
-Translate the input text into 4 English tonal variations. If the input is already English, rephrase it into 4 distinct variations.
+1. Translate the input text into 4 English tonal variations. If the input is already English, rephrase it into 4 distinct variations.
+2. For each English variation, provide a Vietnamese quote/translation that captures the exact tone and meaning of that specific variation.
+3. Provide a detailed grammatical analysis of the original input text (or its closest English equivalent if the input is in Vietnamese).
 
 === INPUT ===
 "${text}"
@@ -142,7 +144,21 @@ Translate the input text into 4 English tonal variations. If the input is alread
 - Preserve the original meaning and intent accurately across all 4 tones.
 - Use natural collocations and idiomatic phrasing for each register — avoid translationese.
 - If the input contains Vietnamese cultural context or idioms, adapt them to culturally equivalent English expressions rather than literal translation.
+- The Vietnamese 'quote' for each tone MUST reflect the specific nuance of that English variation (e.g., a formal English sentence should have a formal Vietnamese translation like "Kính gửi...", an informal one should be "Ê, ...").
+- For the grammar analysis, break down the sentence into components (subject, verb, object, etc.) and explain their roles.
 `;
+
+// export const buildToneTranslationPromptV2 = (text: string): string => `
+// Translate the following text into English.
+// If the text is already English, translate/paraphrase it into English variations.
+// Input Text: "${text}"
+// You MUST provide 4 distinct tonal variations:
+// 1. Formal (Business/Professional)
+// 2. Friendly (Warm/Polite)
+// 3. Informal (Casual/Slang)
+// 4. Conversational (Neutral/Daily use)
+// Return strictly JSON.
+// `;
 
 export const buildStoryScenarioPrompt = (
   level: CEFRLevel,
@@ -281,35 +297,32 @@ export const buildMindMapExpandPrompt = (
   nodeLabel: string,
   rootTopic: string,
   level: CEFRLevel,
-): string => {
-  const relationTypes = [
-    'a more specific subtype (hyponym)',
-    'a closely associated action or verb',
-    'a descriptive quality or adjective',
-    'a real-world object or tool associated with it',
-    'a person or role related to it',
-  ];
-  const relation1 = pickRandom(relationTypes);
-  const relation2 = pickRandom(relationTypes.filter((r) => r !== relation1));
+): string => `
+You are building a vocabulary mind map for a ${level} English learner studying "${rootTopic}".
+The user clicked on the node "${nodeLabel}" to expand it.
 
-  return `
-You are a vocabulary network architect building a mind map for a ${level} English learner.
+=== YOUR TASK ===
+Generate exactly 2 new vocabulary words that are **semantically close relatives** of "${nodeLabel}" within the topic "${rootTopic}".
 
-=== CONTEXT ===
-- Root topic: "${rootTopic}"
-- Node being expanded: "${nodeLabel}"
-- Target: Generate exactly 2 new vocabulary branches from "${nodeLabel}"
+=== WHAT "SEMANTICALLY CLOSE" MEANS ===
+The new words must belong to the **same semantic family or category** as "${nodeLabel}". Think: "If I'm learning about ${nodeLabel}, what other words do I NEED to know that are in the same group?"
 
-=== WORD SELECTION RULES ===
-1. **Concrete over abstract**: Choose tangible, visualizable words — not categories or concepts.
-   - Good: "Mother" → "Lullaby", "Apron"
-   - Bad: "Mother" → "Maternal instinct", "Family dynamics"
-2. **Relationship variety**: The 2 words should represent DIFFERENT types of relationships to "${nodeLabel}":
-   - Word 1: ${relation1}
-   - Word 2: ${relation2}
-3. **1-2 words maximum** per node. No phrases, no explanations as labels.
-4. **Level-appropriate**: For ${level}, choose words that ${level === 'A1-A2' ? 'are high-frequency and used in daily life' : level === 'B1-B2' ? 'include useful collocations or phrasal connections' : 'are nuanced, less common, or have interesting etymology'}.
-5. **Stay in domain**: Both words must connect back to "${rootTopic}" through "${nodeLabel}" — not random associations.
+Examples of GOOD expansions:
+- "Mother" → "Grandmother", "Aunt" (same category: female family members)
+- "Dog" → "Puppy", "Bark" (same entity: life stage + core action)
+- "Kitchen" → "Stove", "Fridge" (same space: objects found there)
+- "Run" → "Sprint", "Jog" (same action: variations of running)
+
+Examples of BAD expansions (DO NOT do this):
+- "Mother" → "Apron", "Nurture" (loosely associated objects/concepts, NOT same semantic group)
+- "Dog" → "Loyalty", "Leash" (abstract traits or loosely related objects)
+- "Kitchen" → "Hunger", "Recipe" (abstract concepts, not concrete vocabulary in the same group)
+
+=== RULES ===
+1. **Same semantic group**: Both words must be in the same category/family as "${nodeLabel}" — siblings, subtypes, or direct components.
+2. **1-2 words maximum** per node. No phrases or explanations as labels.
+3. **Level-appropriate**: For ${level}, choose words that ${level === 'A1-A2' ? 'are high-frequency and essential for daily communication' : level === 'B1-B2' ? 'expand vocabulary breadth with useful near-synonyms or related terms' : 'include nuanced distinctions, formal/informal variants, or less common but precise terms'}.
+4. **Learner-useful**: A student learning "${nodeLabel}" would naturally want to learn these words next.
 
 === OUTPUT PER NODE ===
 1. **label**: The English word (1-2 words)
@@ -319,7 +332,6 @@ You are a vocabulary network architect building a mind map for a ${level} Englis
 
 Output strictly in JSON format as an array of 2 objects.
 `;
-};
 
 export const buildCustomNodePrompt = (
   customWord: string,

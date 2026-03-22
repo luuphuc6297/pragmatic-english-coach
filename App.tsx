@@ -32,52 +32,12 @@ import {useDataLoader} from './hooks/useDataLoader';
 import {useLessonManager} from './hooks/useLessonManager';
 import {useChatHandler} from './hooks/useChatHandler';
 import {useSavedItemsManager} from './hooks/useSavedItemsManager';
-import {Loader2, ArrowLeft, Library, Plus} from 'lucide-react';
+import {ArrowLeft, Library, Plus} from 'lucide-react';
 import {styles} from './configs/themeConfig';
+import {generateNativeSpeech} from './services/geminiService';
 
 const App = () => {
   const {user, authLoading, setAuthLoading} = useAuth();
-
-  const handleDataLoaded = useCallback(
-    (state: AppState | null, history: ConversationHistory[], items: SavedItem[]) => {
-      if (state) {
-        setHasOnboarded(state.hasOnboarded ?? false);
-        setUserPreferences(state.userPreferences ?? null);
-        setCompletedLessons(new Set(state.completedLessons ?? []));
-        setScoreHistory(state.scoreHistory ?? []);
-
-        if (state.currentSession) {
-          setCurrentConversationId(state.currentSession.currentConversationId ?? null);
-          setCurrentLessonIndex(state.currentSession.currentLessonIndex ?? 0);
-          setGeneratedLessons(state.currentSession.generatedLessons ?? []);
-          setCurrentStory(state.currentSession.currentStory ?? null);
-          setCurrentQuizItem(state.currentSession.currentQuizItem ?? null);
-          setCurrentDialogue(state.currentSession.currentDialogue ?? null);
-          setMessages(state.currentSession.messages ?? []);
-          setHintLevel(state.currentSession.hintLevel ?? 0);
-          setChatMode(state.currentSession.chatMode ?? 'roleplay');
-          setSessionStarted(state.currentSession.sessionStarted ?? false);
-          setTranslationDirection(state.currentSession.translationDirection ?? 'VN_to_EN');
-          setTempDifficultyOverride(state.currentSession.tempDifficultyOverride ?? null);
-        }
-      }
-
-      if (items && items.length > 0) {
-        setSavedItems(items);
-      } else if (state && state.savedItems) {
-        setSavedItems(state.savedItems);
-      }
-
-      if (history && history.length > 0) {
-        setConversationHistory(history);
-      } else if (state && state.conversationHistory) {
-        setConversationHistory(state.conversationHistory);
-      }
-    },
-    [],
-  );
-
-  const {isDataLoaded} = useDataLoader(user, authLoading, handleDataLoaded);
 
   // --- STATE INITIALIZATION WITH LOCAL STORAGE ---
   const [hasOnboarded, setHasOnboarded] = useState<boolean>(() => {
@@ -156,6 +116,70 @@ const App = () => {
     initialSession?.tempDifficultyOverride || null,
   );
 
+  const handleDataLoaded = useCallback(
+    (state: AppState | null, history: ConversationHistory[], items: SavedItem[]) => {
+      if (state) {
+        setHasOnboarded(state.hasOnboarded ?? false);
+        
+        // Merge customTopics from localStorage if missing in Supabase
+        let prefs = state.userPreferences ?? null;
+        if (prefs && !prefs.customTopics) {
+          const localPrefsStr = localStorage.getItem('pec_userPreferences');
+          if (localPrefsStr) {
+            try {
+              const localPrefs = JSON.parse(localPrefsStr);
+              if (localPrefs && localPrefs.customTopics) {
+                prefs = { ...prefs, customTopics: localPrefs.customTopics };
+              }
+            } catch (e) {
+              console.error('Failed to parse local preferences', e);
+            }
+          }
+        }
+        setUserPreferences(prefs);
+        
+        setCompletedLessons(new Set(state.completedLessons ?? []));
+        setScoreHistory(state.scoreHistory ?? []);
+
+        if (state.currentSession) {
+          setCurrentConversationId(state.currentSession.currentConversationId ?? null);
+          setCurrentLessonIndex(state.currentSession.currentLessonIndex ?? 0);
+          setGeneratedLessons(state.currentSession.generatedLessons ?? []);
+          setCurrentStory(state.currentSession.currentStory ?? null);
+          setCurrentQuizItem(state.currentSession.currentQuizItem ?? null);
+          setCurrentDialogue(state.currentSession.currentDialogue ?? null);
+          setMessages(state.currentSession.messages ?? []);
+          setHintLevel(state.currentSession.hintLevel ?? 0);
+          setChatMode(state.currentSession.chatMode ?? 'roleplay');
+          setSessionStarted(state.currentSession.sessionStarted ?? false);
+          setTranslationDirection(state.currentSession.translationDirection ?? 'VN_to_EN');
+          setTempDifficultyOverride(state.currentSession.tempDifficultyOverride ?? null);
+        }
+      } else if (user && !user.id.startsWith('guest-')) {
+        // If Supabase returns null for a real user, it's a fresh account.
+        // We must ignore any stale localStorage data from previous sessions.
+        setHasOnboarded(false);
+        setUserPreferences(null);
+      }
+
+      if (state && state.savedItems && state.savedItems.length > 0) {
+        setSavedItems(state.savedItems);
+      } else if (items && items.length > 0) {
+        setSavedItems(items);
+      }
+
+      if (state && state.conversationHistory && state.conversationHistory.length > 0) {
+        // appState has the most up-to-date auto-saved history
+        setConversationHistory(state.conversationHistory);
+      } else if (history && history.length > 0) {
+        setConversationHistory(history);
+      }
+    },
+    [user],
+  );
+
+  const {isDataLoaded} = useDataLoader(user, authLoading, handleDataLoaded);
+
   const activeLessonPool = generatedLessons.length > 0 ? generatedLessons : [];
   const safeIndex = currentLessonIndex % (activeLessonPool.length || 1);
   const currentLesson = activeLessonPool.length > 0 ? activeLessonPool[safeIndex] : null;
@@ -168,6 +192,7 @@ const App = () => {
   // --- PERSISTENCE & TRACKING ---
   usePersistence({
     user,
+    isDataLoaded,
     hasOnboarded,
     userPreferences,
     completedLessons,
@@ -286,13 +311,17 @@ const App = () => {
     }
   };
 
-  const handleResetSettings = () => {
+  const handleResetSettings = async () => {
     localStorage.removeItem('pec_hasOnboarded');
     localStorage.removeItem('pec_userPreferences');
     localStorage.removeItem('pec_completedLessons');
     localStorage.removeItem('pec_scoreHistory');
     localStorage.removeItem('pec_conversationHistory');
     localStorage.removeItem('pec_currentSession');
+
+    if (user) {
+      await supabaseService.deleteState(user.id);
+    }
 
     setHasOnboarded(false);
     setSessionStarted(false);
@@ -337,26 +366,37 @@ const App = () => {
   const handleSignOut = async () => {
     setAuthLoading(true);
     try {
+      if (user && isDataLoaded && hasOnboarded) {
+        const appState = {
+          hasOnboarded,
+          userPreferences,
+          completedLessons: Array.from(completedLessons),
+          scoreHistory,
+          savedItems,
+          conversationHistory,
+          currentSession: {
+            currentConversationId,
+            currentLessonIndex,
+            generatedLessons,
+            currentStory,
+            currentQuizItem,
+            currentDialogue,
+            messages,
+            hintLevel,
+            chatMode,
+            sessionStarted,
+            translationDirection,
+            tempDifficultyOverride
+          }
+        };
+        await supabaseService.saveState(user.id, appState);
+        await supabaseService.syncHistory(user.id, conversationHistory);
+      }
       await supabase.auth.signOut();
+      localStorage.clear();
+      window.location.reload();
     } catch (error) {
       console.error('Error signing out:', error);
-    } finally {
-      localStorage.clear();
-      setHasOnboarded(false);
-      setUserPreferences(null);
-      setCompletedLessons(new Set());
-      setScoreHistory([]);
-      setSavedItems([]);
-      setConversationHistory([]);
-      setCurrentConversationId(null);
-      setMessages([]);
-      setSessionStarted(false);
-      setGeneratedLessons([]);
-      setCurrentStory(null);
-      setCurrentQuizItem(null);
-      setCurrentDialogue(null);
-      setTempDifficultyOverride(null);
-      setShowProfile(false);
       setAuthLoading(false);
     }
   };
@@ -373,6 +413,53 @@ const App = () => {
     }
   };
 
+  const handlePlayAudio = async (text: string) => {
+    try {
+      const base64Audio = await generateNativeSpeech(text);
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)({
+        sampleRate: 24000,
+      });
+      const binaryString = atob(base64Audio);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const dataInt16 = new Int16Array(bytes.buffer);
+      const buffer = audioContext.createBuffer(1, dataInt16.length, 24000);
+      const channelData = buffer.getChannelData(0);
+      for (let i = 0; i < dataInt16.length; i++) {
+        channelData[i] = dataInt16[i] / 32768.0;
+      }
+      const source = audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioContext.destination);
+      source.start();
+    } catch (error) {
+      console.error(error);
+      alert('Could not play audio.');
+    }
+  };
+
+  const handleGenerateImage = async (id: string, text: string, context?: string) => {
+    try {
+      const { generateIllustration } = await import('./services/geminiService');
+      const imageUrl = await generateIllustration(text, context);
+      
+      const updatedItems = savedItems.map(item => 
+        item.id === id ? { ...item, imageUrl } : item
+      );
+      setSavedItems(updatedItems);
+      
+      if (user) {
+        await supabaseService.syncSavedItems(user.id, updatedItems);
+      }
+    } catch (error) {
+      console.error('Failed to generate image:', error);
+      alert('Could not generate image.');
+    }
+  };
+
   const handleDeleteConversation = (id: string) => {
     setConversationHistory((prev) => prev.filter((h) => h.id !== id));
     if (currentConversationId === id) {
@@ -383,7 +470,8 @@ const App = () => {
   };
 
   const handleModeSwitch = (mode: ChatMode) => {
-    if (mode === 'vocab_hub' || mode === 'translator' || mode === 'quiz') {
+    setIsLoading(false);
+    if (mode === 'vocab_hub' || mode === 'quiz') {
       handleStartMode(mode);
     } else {
       setSelectedModeForHistory(mode);
@@ -397,12 +485,14 @@ const App = () => {
   };
 
   const handleSelectFromHistory = (item: ConversationHistory) => {
+    setIsLoading(false);
     handleRestoreConversation(item);
     setShowHistoryModal(false);
     setSelectedModeForHistory(null);
   };
 
   const handleStartNewFromHistory = (mode: ChatMode) => {
+    setIsLoading(false);
     setShowHistoryModal(false);
     setSelectedModeForHistory(null);
     handleStartMode(mode, true);
@@ -413,7 +503,7 @@ const App = () => {
   if (authLoading || (user && !isDataLoaded)) {
     return (
       <div className={styles.layout.screenLight}>
-        <Loader2 className="animate-spin text-brand-500" size={48} />
+        <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Travel%20and%20places/Rocket.png" alt="Loading" className="w-16 h-16 animate-pulse mb-4" referrerPolicy="no-referrer" />
         <p className="text-slate-500 font-medium">Loading your progress...</p>
       </div>
     );
@@ -466,7 +556,7 @@ const App = () => {
   if (isGenerating && (!currentLesson || (chatMode === 'story' && !currentStory))) {
     return (
       <div className={styles.layout.screenDark}>
-        <Loader2 className="animate-spin text-brand-400" size={48} />
+        <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Travel%20and%20places/Rocket.png" alt="Loading" className="w-16 h-16 animate-pulse mb-4" referrerPolicy="no-referrer" />
         <div className="text-center">
           <h2 className="text-xl font-bold">
             {chatMode === 'story' ? 'Preparing Scenario' : 'Designing Lesson'}
@@ -482,7 +572,7 @@ const App = () => {
   }
 
   return (
-    <div className="flex h-screen bg-slate-900 overflow-hidden relative">
+    <div className="flex h-screen bg-navy overflow-hidden relative">
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
@@ -490,7 +580,7 @@ const App = () => {
         activeConversationId={currentConversationId}
         onSelectConversation={handleRestoreConversation}
         onSyncHistory={handleSyncHistory}
-        onStartNew={() => handleStartMode(chatMode, true)}
+        onStartNew={() => { setIsLoading(false); handleStartMode(chatMode, true); }}
         onShowAllHistory={() => {
           setSelectedModeForHistory(null);
           setShowHistoryModal(true);
@@ -516,6 +606,11 @@ const App = () => {
         currentLesson={currentLesson}
         currentStory={currentStory}
         currentDialogue={currentDialogue}
+        latestGrammarAnalysis={
+          chatMode === 'translator' 
+            ? messages.filter(m => m.role === 'assistant' && m.translation?.grammarAnalysis).pop()?.translation?.grammarAnalysis 
+            : null
+        }
         safeIndex={safeIndex}
         isCurrentLessonCompleted={currentLesson ? completedLessons.has(currentLesson.id) : false}
         translationDirection={translationDirection}
@@ -526,7 +621,9 @@ const App = () => {
         isGenerating={isGenerating}
         isInfiniteMode={isInfiniteMode}
         userName={userPreferences?.name}
+        userAvatar={userPreferences?.avatarUrl}
         averageScore={averageScore}
+        customTopics={userPreferences?.customTopics}
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         onBack={() => setSessionStarted(false)}
         onShowProfile={() => setShowProfile(true)}
@@ -535,17 +632,17 @@ const App = () => {
           setShowHistoryModal(true);
         }}
         onNextLesson={handleNextLesson}
-        onStartNew={() => handleStartMode(chatMode, true)}
+        onStartNew={() => { setIsLoading(false); handleStartMode(chatMode, true); }}
       />
 
-      <div className="flex-1 flex flex-col h-full bg-slate-50">
-        <div className={styles.layout.mobileHeader}>
+      <div className="flex-1 flex flex-col h-full bg-navy relative">
+        <div className="md:hidden h-14 bg-navy-muted/50 border-b border-white/10 flex items-center justify-between px-4 sticky top-0 z-10 backdrop-blur-md">
           <div className="flex items-center gap-2">
-            <button onClick={() => setSessionStarted(false)} className="p-1 -ml-2 text-slate-500">
+            <button onClick={() => setSessionStarted(false)} className="p-1 -ml-2 text-slate-400 hover:text-primary transition-colors">
               <ArrowLeft size={20} />
             </button>
             <div className="flex flex-col">
-              <span className="font-bold text-slate-800 truncate text-sm w-32">
+              <span className="font-bold text-slate-100 truncate text-sm w-32">
                 {isGenerating
                   ? 'Loading...'
                   : chatMode === 'story'
@@ -558,21 +655,21 @@ const App = () => {
                           ? currentDialogue?.title || 'Practice Dialogues'
                           : 'Translator'}
               </span>
-              <span className="text-[10px] text-slate-500">Avg: {averageScore}</span>
+              <span className="text-[10px] text-primary/70">Avg: {averageScore}</span>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => handleStartMode(chatMode, true)}
+              onClick={() => { setIsLoading(false); handleStartMode(chatMode, true); }}
               disabled={isGenerating}
-              className="p-2 text-slate-400 hover:text-brand-600"
+              className="p-2 text-slate-400 hover:text-primary transition-colors"
               title="New Conversation"
             >
               <Plus size={20} />
             </button>
             <button
               onClick={() => setShowSavedItems(true)}
-              className="p-2 text-slate-400 hover:text-brand-600"
+              className="p-2 text-slate-400 hover:text-primary transition-colors"
             >
               <Library size={20} />
             </button>
@@ -580,7 +677,7 @@ const App = () => {
               <button
                 onClick={() => handleNextLesson('same')}
                 disabled={isGenerating}
-                className="text-xs font-bold text-brand-600 px-3 py-1 bg-brand-50 rounded-full"
+                className="text-xs font-bold text-background-dark px-3 py-1 bg-primary rounded-full"
               >
                 Next
               </button>
@@ -592,7 +689,7 @@ const App = () => {
           <div className="hidden md:flex absolute top-4 right-6 z-40 gap-2">
             <button
               onClick={() => setShowSavedItems(true)}
-              className="p-2 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-full text-slate-400 hover:text-brand-600 hover:border-brand-200 shadow-sm transition-all"
+              className="p-2 bg-navy-muted/80 backdrop-blur-sm border border-white/10 rounded-full text-slate-400 hover:text-primary hover:border-primary/30 shadow-sm transition-all hover:-translate-y-1"
               title="Saved Items"
             >
               <Library size={20} />
@@ -643,6 +740,8 @@ const App = () => {
               onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
               onReturnToModes={() => setSessionStarted(false)}
               userName={userPreferences?.name}
+              userAvatar={userPreferences?.avatarUrl}
+              onStartNew={() => startNewSession(chatMode)}
             />
           )}
         </div>
@@ -655,6 +754,8 @@ const App = () => {
           onDelete={handleDeleteItem}
           onPractice={handlePracticeItem}
           onSync={handleSyncSavedItems}
+          onPlayAudio={handlePlayAudio}
+          onGenerateImage={handleGenerateImage}
         />
       )}
 

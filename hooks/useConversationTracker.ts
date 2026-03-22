@@ -39,6 +39,8 @@ export const useConversationTracker = ({
                     context = currentDialogue;
                 } else if (chatMode === 'translator') {
                     title = 'Translation Session';
+                } else if (chatMode === 'quiz') {
+                    title = 'Vocabulary Quiz';
                 }
 
                 const updatedHistoryItem: ConversationHistory = {

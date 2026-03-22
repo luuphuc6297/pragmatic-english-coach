@@ -40,8 +40,10 @@ export interface Exercise {
 
 export interface UserPreferences {
   name: string; // Added user name
+  avatarUrl?: string; // Predefined avatar URL
   level: CEFRLevel;
   topics: string[];
+  customTopics?: {id: string, label: string, icon: string, colorClass: string}[];
 }
 
 export interface LessonContext {
@@ -92,6 +94,7 @@ export interface SavedItem {
   explanation?: string;
   examples?: { en: string; vn: string }[];
   partOfSpeech?: string; // e.g., Noun, Verb, Adjective, Phrasal Verb, etc.
+  imageUrl?: string; // Generated illustration
   
   // Spaced Repetition fields
   nextReviewDate?: number; // timestamp
@@ -126,13 +129,24 @@ export interface AssessmentResult {
   nextAgentReplyVietnamese?: string; // For Story Mode: The translation of the agent's continuation
 }
 
+export interface GrammarComponent {
+  text: string;
+  type: 'subject' | 'verb' | 'object' | 'adjective' | 'adverb' | 'preposition' | 'conjunction' | 'other';
+  explanation: string;
+}
+
 export interface TranslationResult {
   original: string;
   tones: {
-    formal: string;
-    friendly: string;
-    informal: string;
-    conversational: string;
+    formal: { text: string; quote: string };
+    friendly: { text: string; quote: string };
+    informal: { text: string; quote: string };
+    conversational: { text: string; quote: string };
+  };
+  grammarAnalysis?: {
+    sentence: string;
+    components: GrammarComponent[];
+    generalExplanation: string;
   };
 }
 

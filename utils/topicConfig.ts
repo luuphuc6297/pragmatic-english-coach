@@ -20,6 +20,7 @@ interface TopicConfig {
   color: string;
   bg: string;
   border: string;
+  selectedClass?: string;
 }
 
 const TOPIC_MATCHERS: {keywords: string[]; config: TopicConfig}[] = [
@@ -30,82 +31,97 @@ const TOPIC_MATCHERS: {keywords: string[]; config: TopicConfig}[] = [
       color: 'text-blue-400',
       bg: 'bg-blue-500/10',
       border: 'border-blue-500/30',
+      selectedClass: 'bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/25 scale-105',
     },
   },
   {
     keywords: ['travel', 'survival'],
-    config: {icon: Plane, color: 'text-sky-400', bg: 'bg-sky-500/10', border: 'border-sky-500/30'},
+    config: {
+      icon: Plane, 
+      color: 'text-emerald-400', 
+      bg: 'bg-emerald-500/10', 
+      border: 'border-emerald-500/30',
+      selectedClass: 'bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-500/25 scale-105',
+    },
   },
   {
     keywords: ['food', 'dining'],
     config: {
       icon: Coffee,
-      color: 'text-orange-400',
-      bg: 'bg-orange-500/10',
-      border: 'border-orange-500/30',
+      color: 'text-amber-400',
+      bg: 'bg-amber-500/10',
+      border: 'border-amber-500/30',
+      selectedClass: 'bg-amber-500 text-white border-amber-500 shadow-lg shadow-amber-500/25 scale-105',
     },
   },
   {
     keywords: ['social', 'love'],
     config: {
       icon: Heart,
-      color: 'text-pink-400',
-      bg: 'bg-pink-500/10',
-      border: 'border-pink-500/30',
+      color: 'text-rose-400',
+      bg: 'bg-rose-500/10',
+      border: 'border-rose-500/30',
+      selectedClass: 'bg-rose-500 text-white border-rose-500 shadow-lg shadow-rose-500/25 scale-105',
     },
   },
   {
     keywords: ['tech'],
     config: {
       icon: Monitor,
-      color: 'text-cyan-400',
-      bg: 'bg-cyan-500/10',
-      border: 'border-cyan-500/30',
+      color: 'text-indigo-400',
+      bg: 'bg-indigo-500/10',
+      border: 'border-indigo-500/30',
+      selectedClass: 'bg-indigo-500 text-white border-indigo-500 shadow-lg shadow-indigo-500/25 scale-105',
     },
   },
   {
     keywords: ['medical'],
     config: {
       icon: Stethoscope,
-      color: 'text-red-400',
-      bg: 'bg-red-500/10',
-      border: 'border-red-500/30',
+      color: 'text-cyan-400',
+      bg: 'bg-cyan-500/10',
+      border: 'border-cyan-500/30',
+      selectedClass: 'bg-cyan-500 text-white border-cyan-500 shadow-lg shadow-cyan-500/25 scale-105',
     },
   },
   {
     keywords: ['shopping'],
     config: {
       icon: ShoppingBag,
-      color: 'text-violet-400',
-      bg: 'bg-violet-500/10',
-      border: 'border-violet-500/30',
+      color: 'text-pink-400',
+      bg: 'bg-pink-500/10',
+      border: 'border-pink-500/30',
+      selectedClass: 'bg-pink-500 text-white border-pink-500 shadow-lg shadow-pink-500/25 scale-105',
     },
   },
   {
     keywords: ['music', 'entertainment'],
     config: {
       icon: Music,
-      color: 'text-fuchsia-400',
-      bg: 'bg-fuchsia-500/10',
-      border: 'border-fuchsia-500/30',
+      color: 'text-violet-400',
+      bg: 'bg-violet-500/10',
+      border: 'border-violet-500/30',
+      selectedClass: 'bg-violet-500 text-white border-violet-500 shadow-lg shadow-violet-500/25 scale-105',
     },
   },
   {
     keywords: ['environment'],
     config: {
       icon: TreePine,
-      color: 'text-emerald-400',
-      bg: 'bg-emerald-500/10',
-      border: 'border-emerald-500/30',
+      color: 'text-green-400',
+      bg: 'bg-green-500/10',
+      border: 'border-green-500/30',
+      selectedClass: 'bg-green-500 text-white border-green-500 shadow-lg shadow-green-500/25 scale-105',
     },
   },
   {
     keywords: ['finance'],
     config: {
       icon: Banknote,
-      color: 'text-green-400',
-      bg: 'bg-green-500/10',
-      border: 'border-green-500/30',
+      color: 'text-emerald-400',
+      bg: 'bg-emerald-500/10',
+      border: 'border-emerald-500/30',
+      selectedClass: 'bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-500/25 scale-105',
     },
   },
   {
@@ -115,15 +131,17 @@ const TOPIC_MATCHERS: {keywords: string[]; config: TopicConfig}[] = [
       color: 'text-slate-400',
       bg: 'bg-slate-500/10',
       border: 'border-slate-500/30',
+      selectedClass: 'bg-slate-500 text-white border-slate-500 shadow-lg shadow-slate-500/25 scale-105',
     },
   },
   {
     keywords: ['education'],
     config: {
       icon: GraduationCap,
-      color: 'text-yellow-400',
-      bg: 'bg-yellow-500/10',
-      border: 'border-yellow-500/30',
+      color: 'text-blue-400',
+      bg: 'bg-blue-500/10',
+      border: 'border-blue-500/30',
+      selectedClass: 'bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/25 scale-105',
     },
   },
   {
@@ -133,15 +151,17 @@ const TOPIC_MATCHERS: {keywords: string[]; config: TopicConfig}[] = [
       color: 'text-orange-400',
       bg: 'bg-orange-500/10',
       border: 'border-orange-500/30',
+      selectedClass: 'bg-orange-500 text-white border-orange-500 shadow-lg shadow-orange-500/25 scale-105',
     },
   },
 ];
 
 const DEFAULT_TOPIC_CONFIG: TopicConfig = {
   icon: Globe,
-  color: 'text-brand-400',
-  bg: 'bg-brand-500/10',
-  border: 'border-brand-500/30',
+  color: 'text-slate-400',
+  bg: 'bg-slate-500/10',
+  border: 'border-slate-500/30',
+  selectedClass: 'bg-slate-500 text-white border-slate-500 shadow-lg shadow-slate-500/25 scale-105',
 };
 
 export const getTopicConfig = (topic: string): TopicConfig => {

@@ -1,4 +1,4 @@
-import {Dispatch, SetStateAction} from 'react';
+import {Dispatch, SetStateAction, useRef, useEffect} from 'react';
 import {ChatMessage, LessonContext, ChatMode, StoryScenario, SavedItem} from '../types';
 import {
   evaluateResponse,
@@ -42,8 +42,18 @@ export const useChatHandler = (deps: ChatHandlerDeps) => {
     setSavedItems,
   } = deps;
 
+  const currentModeRef = useRef(chatMode);
+  const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    currentModeRef.current = chatMode;
+    requestIdRef.current += 1; // Increment on mode change to invalidate pending requests
+  }, [chatMode]);
+
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
+
+    const currentRequestId = ++requestIdRef.current;
 
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
@@ -58,6 +68,7 @@ export const useChatHandler = (deps: ChatHandlerDeps) => {
     try {
       if (chatMode === 'translator') {
         const translations = await generateToneTranslations(userMsg.content);
+        if (currentRequestId !== requestIdRef.current) return;
         const aiMsg: ChatMessage = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
@@ -71,6 +82,7 @@ export const useChatHandler = (deps: ChatHandlerDeps) => {
         const lastAgentMsg =
           messages.filter((m) => m.role === 'assistant').pop()?.content || currentStory.openingLine;
         const result = await evaluateStoryTurn(currentStory, lastAgentMsg, userMsg.content);
+        if (currentRequestId !== requestIdRef.current) return;
 
         const aiMsg: ChatMessage = {
           id: (Date.now() + 1).toString(),
@@ -84,6 +96,7 @@ export const useChatHandler = (deps: ChatHandlerDeps) => {
       } else if (chatMode === 'quiz') {
         if (!currentQuizItem) return;
         const result = await evaluateQuizAnswer(currentQuizItem, userMsg.content);
+        if (currentRequestId !== requestIdRef.current) return;
 
         const aiMsg: ChatMessage = {
           id: (Date.now() + 1).toString(),
@@ -137,6 +150,7 @@ export const useChatHandler = (deps: ChatHandlerDeps) => {
       } else {
         if (!currentLesson) return;
         const result = await evaluateResponse(userMsg.content, currentLesson, translationDirection);
+        if (currentRequestId !== requestIdRef.current) return;
 
         const aiMsg: ChatMessage = {
           id: (Date.now() + 1).toString(),
@@ -154,7 +168,9 @@ export const useChatHandler = (deps: ChatHandlerDeps) => {
     } catch (error) {
       console.error('Error processing message', error);
     } finally {
-      setIsLoading(false);
+      if (currentRequestId === requestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   };
 

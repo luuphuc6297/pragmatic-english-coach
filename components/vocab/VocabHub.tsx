@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Search, Loader2, Network, BookOpen, Volume2, Plus, ArrowRight, X, Library, Tag, Trash2, Edit2, Check, AlertCircle, Download } from 'lucide-react';
+import { Search, Loader, Network, BookOpen, Volume2, Plus, ArrowRight, X, Library, Tag, Trash2, Edit2, Check, AlertCircle, Download } from 'lucide-react';
 import { CEFRLevel, SavedItem } from '../../types';
 import { getMasteryBarClass } from '../../configs/themeConfig';
 import { generateWordAnalysis, WordAnalysis, generateTopicMindMap, MindMapNode, expandMindMapNode, analyzeCustomNode } from '../../services/geminiService';
@@ -176,10 +176,10 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
     let source = serializer.serializeToString(svgElement);
     
     // Add name spaces.
-    if(!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)){
+    if(!source.match(/^<svg[^>]+xmlns="http:\/\/www\.w3\.org\/2000\/svg"/)){
         source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
     }
-    if(!source.match(/^<svg[^>]+"http\:\/\/www\.w3\.org\/1999\/xlink"/)){
+    if(!source.match(/^<svg[^>]+"http:\/\/www\.w3\.org\/1999\/xlink"/)){
         source = source.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
     }
 
@@ -446,7 +446,7 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          <BookOpen size={18} />
+          <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Open%20Book.png" alt="Book" className="w-4 h-4 object-contain group-hover:-translate-y-0.5 transition-transform duration-300" referrerPolicy="no-referrer" />
           Morphological Analysis
         </button>
         <button
@@ -457,7 +457,7 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          <Network size={18} />
+          <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Linked%20Paperclips.png" alt="Network" className="w-4 h-4 object-contain group-hover:-translate-y-0.5 transition-transform duration-300" referrerPolicy="no-referrer" />
           Topic Mind Map
         </button>
         <button
@@ -468,7 +468,7 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          <Library size={18} />
+          <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Books.png" alt="Library" className="w-4 h-4 object-contain group-hover:-translate-y-0.5 transition-transform duration-300" referrerPolicy="no-referrer" />
           Saved Items
           <span className="ml-1 bg-slate-100 text-slate-600 py-0.5 px-2 rounded-full text-xs">
             {savedItems.length}
@@ -482,7 +482,7 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          <BookOpen size={18} />
+          <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Open%20Book.png" alt="Book" className="w-4 h-4 object-contain group-hover:-translate-y-0.5 transition-transform duration-300" referrerPolicy="no-referrer" />
           Practice
         </button>
         <button
@@ -493,7 +493,7 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          <Library size={18} />
+          <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Books.png" alt="Library" className="w-4 h-4 object-contain group-hover:-translate-y-0.5 transition-transform duration-300" referrerPolicy="no-referrer" />
           Flashcards
         </button>
       </div>
@@ -523,7 +523,7 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
                 disabled={isAnalyzing || !searchWord.trim()}
                 className="absolute right-2 top-1/2 -translate-y-1/2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
               >
-                {isAnalyzing ? <Loader2 size={18} className="animate-spin" /> : 'Analyze'}
+                {isAnalyzing ? <Loader size={18} className="animate-spin" /> : 'Analyze'}
               </button>
             </form>
 
@@ -684,13 +684,13 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
                   placeholder="Enter a root topic (e.g., Family)..."
                   className="w-full bg-white border border-slate-200 rounded-2xl py-4 pl-12 pr-4 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 shadow-sm text-lg"
                 />
-                <Network className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
+                <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Linked%20Paperclips.png" alt="Network" className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 object-contain" referrerPolicy="no-referrer" />
                 <button
                   type="submit"
                   disabled={isGeneratingMap || !topic.trim()}
                   className="absolute right-2 top-1/2 -translate-y-1/2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
-                  {isGeneratingMap ? <Loader2 size={18} className="animate-spin" /> : 'Generate Root'}
+                  {isGeneratingMap ? <Loader size={18} className="animate-spin" /> : 'Generate Root'}
                 </button>
               </form>
 
@@ -709,7 +709,7 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
                     disabled={isAddingCustomNode || !customNodeWord.trim()}
                     className="absolute right-2 top-1/2 -translate-y-1/2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
                   >
-                    {isAddingCustomNode ? <Loader2 size={18} className="animate-spin" /> : 'Add Node'}
+                    {isAddingCustomNode ? <Loader size={18} className="animate-spin" /> : 'Add Node'}
                   </button>
                 </form>
               )}
@@ -770,19 +770,19 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
               )}
               {isGeneratingMap ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm z-10">
-                  <Loader2 className="animate-spin text-emerald-500 mb-4" size={48} />
+                  <Loader className="animate-spin text-emerald-500 mb-4" size={48} />
                   <p className="text-slate-600 font-medium">Constructing semantic network...</p>
                 </div>
               ) : expandingNodeId ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/50 backdrop-blur-sm z-10">
-                  <Loader2 className="animate-spin text-blue-500 mb-4" size={48} />
+                  <Loader className="animate-spin text-blue-500 mb-4" size={48} />
                   <p className="text-slate-600 font-medium">Expanding node...</p>
                 </div>
               ) : mindMapData ? (
                 <svg ref={svgRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
               ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
-                  <Network size={64} className="mb-4 opacity-20" />
+                  <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Linked%20Paperclips.png" alt="Network" className="mb-4 w-16 h-16 object-contain opacity-20" referrerPolicy="no-referrer" />
                   <p>Enter a root topic above to generate a vocabulary mind map.</p>
                   <p className="text-sm mt-2">Click on any node to expand it with more related words!</p>
                 </div>
@@ -874,182 +874,338 @@ const VocabHub: React.FC<VocabHubProps> = ({ userLevel, savedItems, onUpdateItem
             {/* Items Grid */}
             {filteredItems.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-3xl border border-slate-200">
-                <Library size={48} className="mx-auto text-slate-300 mb-4" />
+                <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Books.png" alt="Library" className="mx-auto mb-4 w-12 h-12 object-contain" referrerPolicy="no-referrer" />
                 <h3 className="text-lg font-medium text-slate-900 mb-2">No items found</h3>
                 <p className="text-slate-500">
                   {selectedCategory === 'All' 
-                    ? "You haven't saved any vocabulary items yet."
+                    ? "You haven't saved any items yet."
                     : `No items found in the "${selectedCategory}" category.`}
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredItems.map((item) => (
-                  <div key={item.id} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col">
-                    {editingItemId === item.id ? (
-                      <div className="flex flex-col h-full space-y-3">
-                        <div>
-                          <label className="block text-xs font-medium text-slate-500 mb-1">Word / Phrase</label>
-                          <input
-                            type="text"
-                            value={editForm.correction}
-                            onChange={(e) => setEditForm({ ...editForm, correction: e.target.value })}
-                            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 font-bold text-slate-900"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <label className="block text-xs font-medium text-slate-500 mb-1">Context</label>
-                          <textarea
-                            value={editForm.context}
-                            onChange={(e) => setEditForm({ ...editForm, context: e.target.value })}
-                            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 resize-none h-20"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-slate-500 mb-1">Category</label>
-                          <input
-                            type="text"
-                            value={editForm.category}
-                            onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                            placeholder="e.g., Business, Travel..."
-                            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-slate-500 mb-1">Part of Speech</label>
-                          <select
-                            value={editForm.partOfSpeech}
-                            onChange={(e) => setEditForm({ ...editForm, partOfSpeech: e.target.value })}
-                            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 bg-white"
-                          >
-                            <option value="">Select Part of Speech...</option>
-                            {POS_OPTIONS.map(pos => (
-                              <option key={pos} value={pos}>{pos}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="flex items-center justify-end gap-2 pt-2 mt-auto">
-                          <button
-                            onClick={() => setEditingItemId(null)}
-                            className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={() => handleSaveEdit(item)}
-                            className="px-3 py-1.5 text-sm font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg transition-colors flex items-center gap-1.5"
-                          >
-                            <Check size={14} />
-                            Save
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex justify-between items-start mb-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h4 className="font-bold text-lg text-slate-900">{item.correction}</h4>
-                              {item.partOfSpeech && (
-                                <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-600 text-xs font-medium">
-                                  {formatPOS(item.partOfSpeech)}
-                                </span>
+              <div className="space-y-8">
+                {filteredItems.filter(i => i.type === 'vocabulary').length > 0 && (
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-purple-500"></span> Vocabulary ({filteredItems.filter(i => i.type === 'vocabulary').length})
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {filteredItems.filter(i => i.type === 'vocabulary').map((item) => (
+                        <div key={item.id} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col">
+                          {editingItemId === item.id ? (
+                            <div className="flex flex-col h-full space-y-3">
+                              <div>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">Word / Phrase</label>
+                                <input
+                                  type="text"
+                                  value={editForm.correction}
+                                  onChange={(e) => setEditForm({ ...editForm, correction: e.target.value })}
+                                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 font-bold text-slate-900"
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <label className="block text-xs font-medium text-slate-500 mb-1">Context</label>
+                                <textarea
+                                  value={editForm.context}
+                                  onChange={(e) => setEditForm({ ...editForm, context: e.target.value })}
+                                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 resize-none h-20"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">Category</label>
+                                <input
+                                  type="text"
+                                  value={editForm.category}
+                                  onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                                  placeholder="e.g., Business, Travel..."
+                                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">Part of Speech</label>
+                                <select
+                                  value={editForm.partOfSpeech}
+                                  onChange={(e) => setEditForm({ ...editForm, partOfSpeech: e.target.value })}
+                                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 bg-white"
+                                >
+                                  <option value="">Select Part of Speech...</option>
+                                  {POS_OPTIONS.map(pos => (
+                                    <option key={pos} value={pos}>{pos}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="flex items-center justify-end gap-2 pt-2 mt-auto">
+                                <button
+                                  onClick={() => setEditingItemId(null)}
+                                  className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={() => handleSaveEdit(item)}
+                                  className="px-3 py-1.5 text-sm font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg transition-colors flex items-center gap-1.5"
+                                >
+                                  <Check size={14} />
+                                  Save
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex justify-between items-start mb-3">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <h4 className="font-bold text-lg text-slate-900">{item.correction}</h4>
+                                    {item.partOfSpeech && (
+                                      <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-600 text-xs font-medium">
+                                        {formatPOS(item.partOfSpeech)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {item.original !== item.correction && (
+                                    <p className="text-sm text-slate-500 line-through">{item.original}</p>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => playAudio(item.correction)}
+                                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                    title="Listen"
+                                  >
+                                    <Volume2 size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setSearchWord(item.correction);
+                                      setActiveTab('analysis');
+                                      analyzeWord(item.correction);
+                                    }}
+                                    className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                    title="Analyze Word"
+                                  >
+                                    <BookOpen size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => startEditing(item)}
+                                    className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                                    title="Edit item"
+                                  >
+                                    <Edit2 size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => onDeleteItem(item.id)}
+                                    className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                    title="Delete item"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              </div>
+                              
+                              <p className="text-sm text-slate-700 mb-4 flex-1 italic">"{item.context}"</p>
+                              
+                              {item.explanation && (
+                                <div className="mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                  <p className="text-xs text-slate-600">{item.explanation}</p>
+                                </div>
                               )}
-                            </div>
-                            {item.original !== item.correction && (
-                              <p className="text-sm text-slate-500 line-through">{item.original}</p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => playAudio(item.correction)}
-                              className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="Listen"
-                            >
-                              <Volume2 size={16} />
-                            </button>
-                            <button
-                              onClick={() => {
-                                setSearchWord(item.correction);
-                                setActiveTab('analysis');
-                                analyzeWord(item.correction);
-                              }}
-                              className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                              title="Analyze Word"
-                            >
-                              <BookOpen size={16} />
-                            </button>
-                            <button
-                              onClick={() => startEditing(item)}
-                              className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                              title="Edit item"
-                            >
-                              <Edit2 size={16} />
-                            </button>
-                            <button
-                              onClick={() => onDeleteItem(item.id)}
-                              className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                              title="Delete item"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
+
+                              {item.examples && item.examples.length > 0 && (
+                                <div className="mb-4 space-y-2">
+                                  <h5 className="text-[10px] font-bold text-slate-400 uppercase">Examples</h5>
+                                  <ul className="space-y-2">
+                                    {item.examples.slice(0, 2).map((ex, idx) => (
+                                      <li key={idx} className="text-xs">
+                                        <p className="text-slate-700 font-medium">"{ex.en}"</p>
+                                        <p className="text-slate-500">{ex.vn}</p>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              <div className="mt-auto pt-4 border-t border-slate-100 flex flex-col gap-3">
+                                {/* Mastery Progress */}
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                    <div 
+                                      className={`h-full rounded-full ${
+                                        getMasteryBarClass(item.masteryScore || 0)
+                                      }`}
+                                      style={{ width: `${Math.max(5, Math.min(100, item.masteryScore || 0))}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-[10px] font-bold text-slate-400 w-8 text-right">
+                                    {Math.round(item.masteryScore || 0)}%
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">
+                                    <Tag size={12} />
+                                    {item.category || 'Uncategorized'}
+                                  </div>
+                                  {item.nextReviewDate && (
+                                    <span className="text-[10px] font-medium text-slate-400">
+                                      Review: {new Date(item.nextReviewDate).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </>
+                          )}
                         </div>
-                        
-                        <p className="text-sm text-slate-700 mb-4 flex-1 italic">"{item.context}"</p>
-                        
-                        {item.explanation && (
-                          <div className="mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                            <p className="text-xs text-slate-600">{item.explanation}</p>
-                          </div>
-                        )}
-
-                        {item.examples && item.examples.length > 0 && (
-                          <div className="mb-4 space-y-2">
-                            <h5 className="text-[10px] font-bold text-slate-400 uppercase">Examples</h5>
-                            <ul className="space-y-2">
-                              {item.examples.slice(0, 2).map((ex, idx) => (
-                                <li key={idx} className="text-xs">
-                                  <p className="text-slate-700 font-medium">"{ex.en}"</p>
-                                  <p className="text-slate-500">{ex.vn}</p>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        <div className="mt-auto pt-4 border-t border-slate-100 flex flex-col gap-3">
-                          {/* Mastery Progress */}
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full ${
-                                  getMasteryBarClass(item.masteryScore || 0)
-                                }`}
-                                style={{ width: `${Math.max(5, Math.min(100, item.masteryScore || 0))}%` }}
-                              />
-                            </div>
-                            <span className="text-[10px] font-bold text-slate-400 w-8 text-right">
-                              {Math.round(item.masteryScore || 0)}%
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">
-                              <Tag size={12} />
-                              {item.category || 'Uncategorized'}
-                            </div>
-                            {item.nextReviewDate && (
-                              <span className="text-[10px] font-medium text-slate-400">
-                                Review: {new Date(item.nextReviewDate).toLocaleDateString()}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </>
-                    )}
+                      ))}
+                    </div>
                   </div>
-                ))}
+                )}
+
+                {filteredItems.filter(i => i.type === 'grammar').length > 0 && (
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-blue-500"></span> Grammar ({filteredItems.filter(i => i.type === 'grammar').length})
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {filteredItems.filter(i => i.type === 'grammar').map((item) => (
+                        <div key={item.id} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col">
+                          {editingItemId === item.id ? (
+                            <div className="flex flex-col h-full space-y-3">
+                              <div>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">Grammar Point</label>
+                                <input
+                                  type="text"
+                                  value={editForm.correction}
+                                  onChange={(e) => setEditForm({ ...editForm, correction: e.target.value })}
+                                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 font-bold text-slate-900"
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <label className="block text-xs font-medium text-slate-500 mb-1">Context</label>
+                                <textarea
+                                  value={editForm.context}
+                                  onChange={(e) => setEditForm({ ...editForm, context: e.target.value })}
+                                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 resize-none h-20"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">Category</label>
+                                <input
+                                  type="text"
+                                  value={editForm.category}
+                                  onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                                  placeholder="e.g., Tenses, Prepositions..."
+                                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500"
+                                />
+                              </div>
+                              <div className="flex items-center justify-end gap-2 pt-2 mt-auto">
+                                <button
+                                  onClick={() => setEditingItemId(null)}
+                                  className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={() => handleSaveEdit(item)}
+                                  className="px-3 py-1.5 text-sm font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg transition-colors flex items-center gap-1.5"
+                                >
+                                  <Check size={14} />
+                                  Save
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex justify-between items-start mb-3">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <h4 className="font-bold text-lg text-slate-900">{item.correction}</h4>
+                                  </div>
+                                  {item.original !== item.correction && (
+                                    <p className="text-sm text-slate-500 line-through">{item.original}</p>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => playAudio(item.correction)}
+                                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                    title="Listen"
+                                  >
+                                    <Volume2 size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => startEditing(item)}
+                                    className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                                    title="Edit item"
+                                  >
+                                    <Edit2 size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => onDeleteItem(item.id)}
+                                    className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                    title="Delete item"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              </div>
+                              
+                              <p className="text-sm text-slate-700 mb-4 flex-1 italic">"{item.context}"</p>
+                              
+                              {item.explanation && (
+                                <div className="mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                  <p className="text-xs text-slate-600">{item.explanation}</p>
+                                </div>
+                              )}
+
+                              {item.examples && item.examples.length > 0 && (
+                                <div className="mb-4 space-y-2">
+                                  <h5 className="text-[10px] font-bold text-slate-400 uppercase">Examples</h5>
+                                  <ul className="space-y-2">
+                                    {item.examples.slice(0, 2).map((ex, idx) => (
+                                      <li key={idx} className="text-xs">
+                                        <p className="text-slate-700 font-medium">"{ex.en}"</p>
+                                        <p className="text-slate-500">{ex.vn}</p>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              <div className="mt-auto pt-4 border-t border-slate-100 flex flex-col gap-3">
+                                {/* Mastery Progress */}
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                    <div 
+                                      className={`h-full rounded-full ${
+                                        getMasteryBarClass(item.masteryScore || 0)
+                                      }`}
+                                      style={{ width: `${Math.max(5, Math.min(100, item.masteryScore || 0))}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-[10px] font-bold text-slate-400 w-8 text-right">
+                                    {Math.round(item.masteryScore || 0)}%
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">
+                                    <Tag size={12} />
+                                    {item.category || 'Uncategorized'}
+                                  </div>
+                                  {item.nextReviewDate && (
+                                    <span className="text-[10px] font-medium text-slate-400">
+                                      Review: {new Date(item.nextReviewDate).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

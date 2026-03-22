@@ -4,6 +4,7 @@ import { supabaseService } from '../services/supabaseService';
 
 interface PersistenceState {
     user: AppUser | null;
+    isDataLoaded: boolean;
     hasOnboarded: boolean;
     userPreferences: UserPreferences | null;
     completedLessons: Set<string>;
@@ -27,6 +28,7 @@ interface PersistenceState {
 export const usePersistence = (state: PersistenceState) => {
     const {
         user,
+        isDataLoaded,
         hasOnboarded,
         userPreferences,
         completedLessons,
@@ -105,7 +107,7 @@ export const usePersistence = (state: PersistenceState) => {
     ]);
 
     useEffect(() => {
-        if (user) {
+        if (user && isDataLoaded && hasOnboarded) {
             const appState = {
                 hasOnboarded,
                 userPreferences,
@@ -128,10 +130,16 @@ export const usePersistence = (state: PersistenceState) => {
                     tempDifficultyOverride
                 }
             };
-            supabaseService.saveState(user.id, appState);
+            
+            const timeoutId = setTimeout(() => {
+                supabaseService.saveState(user.id, appState);
+            }, 1000);
+            
+            return () => clearTimeout(timeoutId);
         }
     }, [
         user,
+        isDataLoaded,
         hasOnboarded,
         userPreferences,
         completedLessons,

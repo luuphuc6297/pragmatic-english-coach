@@ -216,23 +216,67 @@ export const translationSchema: Schema = {
       type: Type.OBJECT,
       properties: {
         formal: {
-          type: Type.STRING,
-          description: 'Formal, business-appropriate version.',
+          type: Type.OBJECT,
+          properties: {
+            text: {type: Type.STRING, description: 'Formal, business-appropriate version.'},
+            quote: {type: Type.STRING, description: 'Vietnamese translation of this formal version.'}
+          },
+          required: ['text', 'quote']
         },
-        friendly: {type: Type.STRING, description: 'Warm, friendly version.'},
+        friendly: {
+          type: Type.OBJECT,
+          properties: {
+            text: {type: Type.STRING, description: 'Warm, friendly version.'},
+            quote: {type: Type.STRING, description: 'Vietnamese translation of this friendly version.'}
+          },
+          required: ['text', 'quote']
+        },
         informal: {
-          type: Type.STRING,
-          description: 'Casual, slang, or close-friend version.',
+          type: Type.OBJECT,
+          properties: {
+            text: {type: Type.STRING, description: 'Casual, slang, or close-friend version.'},
+            quote: {type: Type.STRING, description: 'Vietnamese translation of this informal version.'}
+          },
+          required: ['text', 'quote']
         },
         conversational: {
-          type: Type.STRING,
-          description: 'Neutral, everyday conversational version.',
+          type: Type.OBJECT,
+          properties: {
+            text: {type: Type.STRING, description: 'Neutral, everyday conversational version.'},
+            quote: {type: Type.STRING, description: 'Vietnamese translation of this conversational version.'}
+          },
+          required: ['text', 'quote']
         },
       },
       required: ['formal', 'friendly', 'informal', 'conversational'],
     },
+    grammarAnalysis: {
+      type: Type.OBJECT,
+      description: 'Grammar analysis of the original sentence',
+      properties: {
+        sentence: {type: Type.STRING, description: 'The original sentence analyzed'},
+        components: {
+          type: Type.ARRAY,
+          description: 'Breakdown of the sentence into grammatical components',
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              text: {type: Type.STRING, description: 'The word or phrase'},
+              type: {
+                type: Type.STRING,
+                description: 'The grammatical type (e.g., subject, verb, object, adjective, adverb, preposition, conjunction, other)',
+              },
+              explanation: {type: Type.STRING, description: 'Explanation of its role in the sentence'},
+            },
+            required: ['text', 'type', 'explanation'],
+          },
+        },
+        generalExplanation: {type: Type.STRING, description: 'A brief overall explanation of the sentence structure'},
+      },
+      required: ['sentence', 'components', 'generalExplanation'],
+    },
   },
-  required: ['original', 'tones'],
+  required: ['original', 'tones', 'grammarAnalysis'],
 };
 
 export const dictionarySchema: Schema = {

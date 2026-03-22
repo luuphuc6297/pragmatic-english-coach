@@ -1,6 +1,8 @@
 import React from 'react';
 import {Bot} from 'lucide-react';
 import {ChatMode} from '../../types';
+import { Avatar3D } from '../ui/Avatar3D';
+import { BOT_AVATAR } from '../../configs/constants';
 
 interface LoadingBubbleProps {
   chatMode: ChatMode;
@@ -29,11 +31,15 @@ const LoadingBubble: React.FC<LoadingBubbleProps> = ({chatMode}) => {
     <div className="flex w-full justify-start animate-in fade-in zoom-in-95 duration-300">
       <div className="flex max-w-[85%] flex-row gap-3 opacity-90">
         <div
-          className={`flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center mt-1 animate-pulse ${avatarColorClass}`}
+          className={`flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center mt-1 animate-pulse overflow-hidden border border-white/10 ${avatarColorClass}`}
         >
-          <Bot size={18} />
+          <Avatar3D 
+            src={BOT_AVATAR} 
+            className="w-full h-full object-cover scale-110"
+            fallback={<Bot size={20} />}
+          />
         </div>
-        <div className="bg-white text-slate-800 border border-slate-100 rounded-2xl rounded-tl-none px-5 py-4 shadow-sm flex items-center gap-1.5">
+        <div className="bg-navy-muted text-slate-200 border border-white/10 rounded-2xl rounded-tl-none px-5 py-4 shadow-sm flex items-center gap-1.5">
           <span className="text-xs text-slate-400 font-bold mr-2 uppercase tracking-wider">
             Analysis in progress
           </span>

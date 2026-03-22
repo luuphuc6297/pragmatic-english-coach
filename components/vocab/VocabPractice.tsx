@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, CheckCircle, XCircle, ArrowRight, RefreshCw, Lightbulb, BookOpen } from 'lucide-react';
+import { Loader, CheckCircle, XCircle, ArrowRight, RefreshCw, Lightbulb, BookOpen } from 'lucide-react';
 import { SavedItem, Exercise } from '../../types';
 import { generateExercises } from '../../services/geminiService';
 
@@ -116,7 +116,7 @@ const VocabPractice: React.FC<VocabPracticeProps> = ({ savedItems, onUpdateItem 
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
-        <Loader2 className="animate-spin text-emerald-500 mb-4" size={32} />
+        <Loader className="animate-spin text-emerald-500 mb-4" size={32} />
         <p className="text-slate-600 font-medium">Generating your personalized exercises...</p>
       </div>
     );

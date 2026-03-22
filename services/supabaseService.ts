@@ -22,6 +22,18 @@ export const supabaseService = {
     }
   },
 
+  async deleteState(userId: string) {
+    if (userId.startsWith('guest-')) {
+      localStorage.removeItem(`pragmatic_state_${userId}`);
+      return;
+    }
+    try {
+      await supabase.from('app_state').delete().eq('user_id', userId);
+    } catch (err) {
+      console.error('Failed to delete state:', err);
+    }
+  },
+
   async loadState(userId: string): Promise<AppState | null> {
     if (userId.startsWith('guest-')) {
       const local = localStorage.getItem(`pragmatic_state_${userId}`);
@@ -143,6 +155,7 @@ export const supabaseService = {
         explanation: item.explanation || null,
         examples: item.examples || null,
         part_of_speech: item.partOfSpeech || null,
+        image_url: item.imageUrl || null,
         next_review_date: item.nextReviewDate || null,
         interval: item.interval || null,
         ease_factor: item.easeFactor || null,
@@ -198,6 +211,7 @@ export const supabaseService = {
         explanation: item.explanation,
         examples: item.examples,
         partOfSpeech: item.part_of_speech,
+        imageUrl: item.image_url,
         nextReviewDate: item.next_review_date,
         interval: item.interval,
         easeFactor: item.ease_factor,

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { PracticeDialogue, CEFRLevel } from '../../types';
 import { PREDEFINED_DIALOGUES } from '../../data/dialogues';
-import { ArrowLeft, Users, ChevronRight, Search, Sparkles, Loader2 } from 'lucide-react';
+import { ArrowLeft, Users, ChevronRight, Search, Sparkles, Loader } from 'lucide-react';
 
 interface DialogueListProps {
   onSelect: (context: string) => void;

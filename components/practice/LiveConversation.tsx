@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
-import { Mic, MicOff, Loader2, ArrowLeft } from 'lucide-react';
+import { Mic, MicOff, Loader, ArrowLeft } from 'lucide-react';
 import { CEFRLevel, LiveSession } from '../../types';
 
 interface LiveConversationProps {
@@ -266,7 +266,7 @@ const LiveConversation: React.FC<LiveConversationProps> = ({ userLevel, onBack }
           <div className={`relative w-32 h-32 mx-auto rounded-full flex items-center justify-center transition-all duration-500 ${isConnected ? 'bg-rose-100 text-rose-500 shadow-[0_0_40px_rgba(244,63,94,0.3)]' : 'bg-slate-100 text-slate-400'}`}>
             <canvas ref={canvasRef} width={128} height={128} className="absolute top-0 left-0 w-full h-full rounded-full pointer-events-none" />
             {isConnecting ? (
-              <Loader2 size={48} className="animate-spin relative z-10" />
+              <Loader size={48} className="animate-spin relative z-10" />
             ) : isConnected ? (
               <Mic size={48} className="animate-pulse relative z-10" />
             ) : (

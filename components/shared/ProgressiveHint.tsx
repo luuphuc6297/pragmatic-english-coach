@@ -8,32 +8,29 @@ interface ProgressiveHintProps {
   currentLevel: number;
   onRequestHint: () => void;
   onResetHint: () => void;
+  translationDirection?: 'VN_to_EN' | 'EN_to_VN';
 }
 
 const HINT_ICONS = [Lightbulb, AlignLeft, Type] as const;
-const HINT_BUTTON_TEXT = [
-  'Get Hint (Semantic)',
-  'Get Hint (Structure)',
-  'Get Hint (Word)',
-  'Hints Exhausted',
-] as const;
 
 const ProgressiveHint: React.FC<ProgressiveHintProps> = ({
   hints,
   currentLevel,
   onRequestHint,
   onResetHint,
+  translationDirection = 'VN_to_EN',
 }) => {
   const Icon = HINT_ICONS[currentLevel] ?? Lightbulb;
   const isMaxed = currentLevel >= 3;
+  const isEnToVn = translationDirection === 'EN_to_VN';
 
   return (
     <div className={styles.hint.container}>
       <div className="flex items-center justify-between">
         <span className={styles.hint.label}>
-          Smart Tutor
+          {isEnToVn ? 'Gia sư thông minh' : 'Smart Tutor'}
           {currentLevel > 0 && (
-            <span className="bg-yellow-200 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded-full">
+            <span className="bg-highlight-gold/20 text-highlight-gold text-[10px] px-1.5 py-0.5 rounded-full ml-2">
               {currentLevel}/3
             </span>
           )}
@@ -43,21 +40,21 @@ const ProgressiveHint: React.FC<ProgressiveHintProps> = ({
           {currentLevel > 0 && (
             <button
               onClick={onResetHint}
-              className={`${styles.hint.pillButton} text-yellow-700 bg-yellow-100 hover:bg-yellow-200`}
-              title="Hide Hints"
+              className={`${styles.hint.pillButton} text-highlight-gold bg-highlight-gold/10 hover:bg-highlight-gold/20`}
+              title={isEnToVn ? 'Ẩn gợi ý' : 'Hide Hints'}
             >
               <EyeOff className="w-3.5 h-3.5 mr-1.5" />
-              Hide
+              {isEnToVn ? 'Ẩn' : 'Hide'}
             </button>
           )}
 
           {!isMaxed && (
             <button
               onClick={onRequestHint}
-              className={`${styles.hint.pillButton} text-white bg-yellow-500 hover:bg-yellow-600 shadow-sm`}
+              className={`${styles.hint.pillButton} text-navy bg-highlight-gold hover:bg-highlight-gold/90 shadow-sm`}
             >
               <Icon className="w-4 h-4 mr-2" />
-              {currentLevel === 0 ? 'Get Hint' : 'Next Hint'}
+              {currentLevel === 0 ? (isEnToVn ? 'Nhận gợi ý' : 'Get Hint') : (isEnToVn ? 'Gợi ý tiếp theo' : 'Next Hint')}
             </button>
           )}
         </div>
@@ -67,24 +64,24 @@ const ProgressiveHint: React.FC<ProgressiveHintProps> = ({
         <div className="space-y-2 mt-1">
           {currentLevel >= 1 && (
             <div className={styles.hint.item}>
-              <span className="font-bold text-yellow-600 mr-2 text-xs uppercase tracking-wide">
-                Meaning:
+              <span className="font-bold text-highlight-gold mr-2 text-xs uppercase tracking-wide">
+                {isEnToVn ? 'Ý nghĩa:' : 'Meaning:'}
               </span>
               {hints.level1}
             </div>
           )}
           {currentLevel >= 2 && (
             <div className={styles.hint.item}>
-              <span className="font-bold text-yellow-600 mr-2 text-xs uppercase tracking-wide">
-                Structure:
+              <span className="font-bold text-highlight-gold mr-2 text-xs uppercase tracking-wide">
+                {isEnToVn ? 'Cấu trúc:' : 'Structure:'}
               </span>
               {hints.level2}
             </div>
           )}
           {currentLevel >= 3 && (
             <div className={styles.hint.item}>
-              <span className="font-bold text-yellow-600 mr-2 text-xs uppercase tracking-wide">
-                Word:
+              <span className="font-bold text-highlight-gold mr-2 text-xs uppercase tracking-wide">
+                {isEnToVn ? 'Từ vựng:' : 'Word:'}
               </span>
               {hints.level3}
             </div>

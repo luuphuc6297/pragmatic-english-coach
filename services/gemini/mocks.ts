@@ -37,10 +37,22 @@ export const MOCK_ASSESSMENT_RESULT: AssessmentResult = {
 export const MOCK_TRANSLATION_RESULT: TranslationResult = {
   original: 'Simulated Input',
   tones: {
-    formal: 'I apologize, but I am currently unavailable to assist.',
-    friendly: "Sorry! I can't help right now, maybe later?",
-    informal: "Can't do it rn, sorry.",
-    conversational: "I'm afraid I'm busy at the moment.",
+    formal: {
+      text: 'I apologize, but I am currently unavailable to assist.',
+      quote: 'Tôi xin lỗi, nhưng hiện tại tôi không thể hỗ trợ.'
+    },
+    friendly: {
+      text: "Sorry! I can't help right now, maybe later?",
+      quote: 'Xin lỗi nha! Giờ mình không giúp được, để sau nhé?'
+    },
+    informal: {
+      text: "Can't do it rn, sorry.",
+      quote: 'Giờ không làm được đâu, xin lỗi.'
+    },
+    conversational: {
+      text: "I'm afraid I'm busy at the moment.",
+      quote: 'E là tôi đang bận lúc này.'
+    },
   },
 };
 

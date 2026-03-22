@@ -1,10 +1,11 @@
 import React, {useRef, useEffect, useState, memo, useCallback} from 'react';
+import { Avatar3D } from '../ui/Avatar3D';
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import {
   User,
   Bot,
   Volume2,
-  Loader2,
+  Loader,
   BookmarkPlus,
   CheckCircle,
   CheckCircle2,
@@ -13,6 +14,9 @@ import {
   ChevronUp,
   ArrowRight,
   ArrowRightLeft,
+  Activity,
+  Plus,
+  Sparkles,
 } from 'lucide-react';
 import {ChatMessage, ChatMode, SavedItem, Improvement, LessonContext, SpeechRecognitionEvent} from '../../types';
 import {generateScenarioVideo, generateNativeSpeech} from '../../services/geminiService';
@@ -43,6 +47,7 @@ interface MessageItemProps {
   handleGenerateVideo: (msg: ChatMessage) => void;
   onReturnToModes?: () => void;
   userName?: string;
+  userAvatar?: string;
 }
 
 const MessageItem = memo(({
@@ -64,7 +69,8 @@ const MessageItem = memo(({
   onContinueStory,
   handleGenerateVideo,
   onReturnToModes,
-  userName
+  userName,
+  userAvatar
 }: MessageItemProps) => {
   const renderUserMessage = (msg: ChatMessage, nextMsg?: ChatMessage) => {
     const assessment = nextMsg?.role === 'assistant' ? nextMsg.assessment : undefined;
@@ -157,7 +163,7 @@ const MessageItem = memo(({
   if (msg.role === 'system') {
     return (
       <div className="flex w-full justify-center my-4">
-        <div className="bg-slate-100 text-slate-500 text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wider border border-slate-200">
+        <div className="bg-navy-muted text-slate-300 text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wider border border-white/10">
           {msg.content}
         </div>
       </div>
@@ -169,29 +175,27 @@ const MessageItem = memo(({
       className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
     >
       <div
-        className={`flex w-full md:max-w-[90%] lg:max-w-[90%] xl:max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'} gap-2 md:gap-3`}
+        className={`flex w-full md:max-w-[90%] lg:max-w-[90%] xl:max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'} gap-2 md:gap-4`}
       >
         {/* Avatar */}
         <div
-          className={`flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center shadow-sm mt-1 ring-2 ring-white overflow-hidden ${
+          className={`flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center shadow-sm mt-1 overflow-hidden ${
             msg.role === 'user'
-              ? 'bg-slate-800 text-white'
-              : chatMode === 'translator'
-                ? 'bg-indigo-600 text-white'
-                : chatMode === 'story'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-emerald-600 text-white'
+              ? 'bg-navy-muted border border-white/10'
+              : 'bg-navy-muted border border-white/10'
           }`}
         >
           {msg.role === 'user' ? (
-            <img 
-              src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(userName || 'User')}&backgroundColor=0ea5e9,10b981,6366f1,f43f5e,f59e0b,8b5cf6`} 
-              alt="User Avatar" 
-              className="w-full h-full object-cover"
-              referrerPolicy="no-referrer"
+            <Avatar3D 
+              src={userAvatar} 
+              className="w-full h-full object-cover scale-110"
+              fallback={<span className="text-navy font-bold text-sm md:text-base">{userName?.charAt(0)?.toUpperCase() || 'U'}</span>}
             />
           ) : (
-            <Bot size={18} />
+            <Avatar3D 
+              className="w-full h-full object-cover scale-110"
+              fallback={<span className="text-primary font-bold text-sm md:text-base">A</span>}
+            />
           )}
         </div>
 
@@ -200,10 +204,10 @@ const MessageItem = memo(({
           {/* Text Bubble */}
           {msg.content && (
             <div
-              className={`px-4 py-3 md:px-6 md:py-4 rounded-2xl text-[15px] md:text-base shadow-sm break-words leading-relaxed relative group message-text-container ${
+              className={`px-4 py-3 md:px-5 md:py-4 rounded-2xl text-[15px] md:text-base shadow-lg break-words leading-relaxed relative group message-text-container text-white ${
                 msg.role === 'user'
-                  ? 'bg-slate-800 text-white rounded-tr-sm ml-auto'
-                  : 'bg-white text-slate-800 border border-slate-100 rounded-tl-sm'
+                  ? 'message-user rounded-tr-none ml-auto'
+                  : 'message-ai rounded-tl-none'
               }`}
             >
               {msg.role === 'user'
@@ -215,11 +219,11 @@ const MessageItem = memo(({
                 <button
                   onClick={() => onPlayAudio(msg.id, msg.content, 'user_input')}
                   disabled={audioLoadingId === `${msg.id}-user_input`}
-                  className="absolute -left-10 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white text-slate-400 hover:text-brand-600 shadow-sm border border-slate-100 transition-opacity disabled:opacity-50"
+                  className="absolute -left-10 top-1/2 -translate-y-1/2 p-2 rounded-full bg-navy-muted text-slate-400 hover:text-primary shadow-sm border border-white/10 transition-opacity disabled:opacity-50"
                   title="Listen to your pronunciation"
                 >
                   {audioLoadingId === `${msg.id}-user_input` ? (
-                    <Loader2 size={14} className="animate-spin" />
+                    <Loader size={14} className="animate-spin" />
                   ) : (
                     <Volume2 size={14} />
                   )}
@@ -241,7 +245,7 @@ const MessageItem = memo(({
                         masteryScore: 0,
                       })
                     }
-                    className="p-1.5 bg-white rounded-full text-slate-400 hover:text-brand-600 shadow-sm border border-slate-100"
+                    className="p-1.5 bg-navy-muted rounded-full text-slate-400 hover:text-primary shadow-sm border border-white/10"
                     title="Save to Dictionary"
                   >
                     <BookmarkPlus size={14} />
@@ -249,11 +253,11 @@ const MessageItem = memo(({
                   <button
                     onClick={() => onPlayAudio(msg.id, msg.content, 'assistant_msg')}
                     disabled={audioLoadingId === `${msg.id}-assistant_msg`}
-                    className="p-1.5 bg-white rounded-full text-slate-400 hover:text-brand-600 disabled:opacity-50 shadow-sm border border-slate-100"
+                    className="p-1.5 bg-navy-muted rounded-full text-slate-400 hover:text-primary disabled:opacity-50 shadow-sm border border-white/10"
                     title="Listen"
                   >
                     {audioLoadingId === `${msg.id}-assistant_msg` ? (
-                      <Loader2 size={12} className="animate-spin" />
+                      <Loader size={12} className="animate-spin" />
                     ) : (
                       <Volume2 size={14} />
                     )}
@@ -263,10 +267,10 @@ const MessageItem = memo(({
 
               {/* Collapsible Translation */}
               {msg.role === 'assistant' && msg.storyTranslation && (
-                <div className="mt-3 border-t border-slate-100 pt-2">
+                <div className="mt-3 border-t border-white/10 pt-2">
                   <button
                     onClick={() => toggleTranslation(msg.id)}
-                    className="flex items-center gap-1.5 text-[10px] uppercase font-bold text-slate-400 hover:text-purple-600 transition-colors"
+                    className="flex items-center gap-1.5 text-[10px] uppercase font-bold text-slate-400 hover:text-primary transition-colors"
                   >
                     {expandedTranslations.has(msg.id) ? (
                       <>
@@ -279,13 +283,20 @@ const MessageItem = memo(({
                     )}
                   </button>
                   {expandedTranslations.has(msg.id) && (
-                    <p className="text-sm text-slate-600 mt-2 italic animate-in fade-in slide-in-from-top-1 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    <p className="text-sm text-slate-300 mt-2 italic animate-in fade-in slide-in-from-top-1 bg-navy-muted/50 p-3 rounded-lg border border-white/5">
                       {msg.storyTranslation}
                     </p>
                   )}
                 </div>
               )}
             </div>
+          )}
+
+          {/* Time and Name */}
+          {msg.content && (
+            <span className={`text-[10px] text-slate-500 font-medium px-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+              {msg.role === 'user' ? 'YOU' : 'AURA AI'} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
           )}
 
           {/* Translator Result */}
@@ -329,6 +340,7 @@ interface ChatInterfaceProps {
   onSend: () => void;
   onUpdateMessage: (id: string, updates: Partial<ChatMessage>) => void;
   onNextLesson: (direction: 'same' | 'harder' | 'easier') => void;
+  onStartNew?: () => void;
   isLoading: boolean;
   currentSituation?: string;
   chatMode: ChatMode;
@@ -342,6 +354,7 @@ interface ChatInterfaceProps {
   onToggleSidebar?: () => void;
   onReturnToModes?: () => void;
   userName?: string;
+  userAvatar?: string;
 }
 
 const ChatInterface: React.FC<ChatInterfaceProps> = ({
@@ -364,6 +377,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onToggleSidebar,
   onReturnToModes,
   userName,
+  userAvatar,
+  onStartNew,
 }) => {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [videoLoadingId, setVideoLoadingId] = useState<string | null>(null);
@@ -634,7 +649,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 relative">
+    <div className="flex flex-col h-full bg-navy relative">
       {/* Text Selection Popover */}
       {selection && (
         <div
@@ -677,23 +692,23 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
       {/* Mobile Task Card (Roleplay Mode Only) */}
       {chatMode === 'roleplay' && currentLesson && (
-        <div className="md:hidden px-4 py-3 bg-slate-50 border-b border-slate-200">
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative">
+        <div className="md:hidden px-4 py-3 bg-navy-muted/30 border-b border-white/5">
+          <div className="bg-navy-muted p-4 rounded-xl border border-white/10 shadow-sm relative">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                <ArrowRight size={12} className="text-brand-500" />
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                <ArrowRight size={12} className="text-primary" />
                 Translate to {translationDirection === 'VN_to_EN' ? 'English' : 'Vietnamese'}
               </span>
               {onToggleDirection && (
                 <button
                   onClick={onToggleDirection}
-                  className="p-1.5 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-brand-600 transition-colors"
+                  className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-primary transition-colors"
                 >
                   <ArrowRightLeft size={14} />
                 </button>
               )}
             </div>
-            <p className="text-lg font-bold text-slate-800 leading-tight pr-8">
+            <p className="text-lg font-bold text-slate-200 leading-tight pr-8">
               "
               {translationDirection === 'VN_to_EN'
                 ? currentLesson.vietnamesePhrase
@@ -715,28 +730,23 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           followOutput="smooth"
           components={{
             Header: () => (
-              messages.length === 0 ? (
-                <div className="text-center text-slate-400 mt-20 px-4">
-                  {chatMode === 'roleplay' ? (
-                    <p className="animate-in fade-in slide-in-from-bottom-4">
-                      Listen to the context on the left and type your response to start.
-                    </p>
-                  ) : chatMode === 'story' ? (
-                    <p className="animate-in fade-in slide-in-from-bottom-4">Setting the stage...</p>
-                  ) : (
-                    <div className="flex flex-col items-center gap-4 animate-in fade-in slide-in-from-bottom-4">
-                      <div className="w-16 h-16 bg-indigo-100 text-indigo-500 rounded-2xl flex items-center justify-center shadow-sm">
-                        <Languages size={32} />
-                      </div>
-                      <h3 className="font-bold text-slate-700 text-lg">Tone Translator</h3>
-                      <p className="text-sm text-slate-500 max-w-xs leading-relaxed">
-                        Type any phrase to see it transformed into Formal, Friendly, Casual, and Native
-                        tones.
-                      </p>
+              <div className="px-4 md:px-6 pt-6 pb-2">
+                {chatMode === 'roleplay' && currentLesson ? (
+                  <div className="h-2" />
+                ) : chatMode === 'story' ? (
+                  <div className="h-2" />
+                ) : chatMode === 'translator' && messages.length === 0 ? (
+                  <div className="flex flex-col items-center gap-4 animate-in fade-in slide-in-from-bottom-4 mt-10">
+                    <div className="w-16 h-16 bg-indigo-500/20 text-indigo-400 rounded-2xl flex items-center justify-center shadow-sm border border-indigo-500/30">
+                      <Languages size={32} />
                     </div>
-                  )}
-                </div>
-              ) : <div className="h-6" />
+                    <h3 className="font-bold text-slate-200 text-lg">Tone Translator</h3>
+                    <p className="text-sm text-slate-400 max-w-xs leading-relaxed text-center">
+                      Type any phrase to see it transformed into Formal, Friendly, Casual, and Native tones.
+                    </p>
+                  </div>
+                ) : <div className="h-2" />}
+              </div>
             ),
             Footer: () => (
               <div className="pb-36 px-3 md:px-6">
@@ -774,6 +784,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 handleGenerateVideo={handleGenerateVideo}
                 onReturnToModes={onReturnToModes}
                 userName={userName}
+                userAvatar={userAvatar}
               />
             );
           }}
@@ -791,6 +802,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         isListening={isListening}
         isStoryWaiting={isStoryWaiting}
         chatMode={chatMode}
+        onStartNew={onStartNew}
+        onNextLesson={onNextLesson}
       />
 
       {/* Save Toast Notification */}

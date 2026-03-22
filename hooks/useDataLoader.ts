@@ -31,6 +31,7 @@ export const useDataLoader = (
         if (user) {
             loadData();
         } else if (!authLoading) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setIsDataLoaded(true);
         }
     }, [user, authLoading]);

@@ -13,7 +13,7 @@ import {
   Exercise,
   SavedItem,
 } from '../types';
-import {ai, MODEL_FLASH, MODEL_TTS, MODEL_VEO} from './gemini/config';
+import {ai, MODEL_FLASH, MODEL_TTS, MODEL_VEO, MODEL_PRO} from './gemini/config';
 import {retryOperation, parseJsonResponse} from './gemini/helpers';
 import {
   assessmentSchema,
@@ -141,7 +141,7 @@ export const generateStoryScenario = async (
   try {
     const response = await retryOperation<GenerateContentResponse>(() =>
       ai.models.generateContent({
-        model: MODEL_FLASH,
+        model: MODEL_PRO,
         contents: [{role: 'user', parts: [{text: prompt}]}],
         config: {
           responseMimeType: 'application/json',
@@ -176,7 +176,7 @@ export const evaluateStoryTurn = async (
   try {
     const response = await retryOperation<GenerateContentResponse>(() =>
       ai.models.generateContent({
-        model: MODEL_FLASH,
+        model: MODEL_PRO,
         contents: [{role: 'user', parts: [{text: prompt}]}],
         config: {
           responseMimeType: 'application/json',
@@ -275,6 +275,7 @@ export const generateScenarioVideo = async (situation: string, phrase: string): 
   }
 };
 
+
 export const generateDictionaryExplanation = async (
   phrase: string,
   context: string,
@@ -284,7 +285,7 @@ export const generateDictionaryExplanation = async (
   try {
     const response = await retryOperation<GenerateContentResponse>(() =>
       ai.models.generateContent({
-        model: MODEL_FLASH,
+        model: MODEL_PRO,
         contents: [{role: 'user', parts: [{text: prompt}]}],
         config: {
           responseMimeType: 'application/json',
@@ -427,6 +428,41 @@ export const generateNativeSpeech = async (text: string): Promise<string> => {
     return base64Audio;
   } catch (e) {
     console.warn('TTS Error (Quota):', e);
+    throw e;
+  }
+};
+
+export const generateIllustration = async (word: string, context?: string): Promise<string> => {
+  const imageAi = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
+  try {
+    const prompt = `A clear, simple, and educational illustration representing the English word or phrase: "${word}". ${context ? `Context: "${context}". ` : ''}The image should be suitable for a language learning app, using a clean, modern, and slightly playful vector art style. Do not include any text in the image.`;
+    
+    const response = await retryOperation<GenerateContentResponse>(() =>
+      imageAi.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: {
+          parts: [
+            {
+              text: prompt,
+            },
+          ],
+        },
+        config: {
+          imageConfig: {
+            aspectRatio: "16:9",
+          }
+        }
+      }),
+    );
+    
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData) {
+        return `data:image/png;base64,${part.inlineData.data}`;
+      }
+    }
+    throw new Error('No image generated');
+  } catch (e) {
+    console.warn('Image Generation Error:', e);
     throw e;
   }
 };

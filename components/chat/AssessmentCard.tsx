@@ -2,7 +2,7 @@ import React from 'react';
 import {
   AlertCircle,
   Video,
-  Loader2,
+  Loader,
   BookOpen,
   PenTool,
   Volume2,
@@ -61,7 +61,7 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
   const badgeLabel = getScoreBadgeLabel(assessment.score);
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden w-full animate-in slide-in-from-left-2 fade-in ring-1 ring-slate-100">
+    <div className="bg-navy-muted/50 rounded-2xl border border-white/10 shadow-sm overflow-hidden w-full animate-in slide-in-from-left-2 fade-in">
       {/* 1. HEADER & SUMMARY */}
       <div className="p-4 md:p-5">
         <div className="flex justify-between items-start mb-4">
@@ -72,14 +72,14 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
               {assessment.score}
             </div>
             <div>
-              <h4 className="text-base font-bold text-slate-800 leading-tight">Assessment</h4>
+              <h4 className="text-base font-bold text-white leading-tight">Assessment</h4>
               <div className="flex items-center gap-2 mt-1">
                 <span
                   className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md ${badgeColorClass}`}
                 >
                   {badgeLabel}
                 </span>
-                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px] font-bold border border-slate-200 uppercase">
+                <span className="px-1.5 py-0.5 rounded-md bg-white/5 text-slate-400 text-[10px] font-bold border border-white/10 uppercase">
                   {assessment.userTone || 'Neutral'}
                 </span>
               </div>
@@ -89,22 +89,22 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
 
         {/* Feedback */}
         <div className="mb-4">
-          <p className="text-[15px] text-slate-700 leading-relaxed font-medium">
+          <p className="text-[15px] text-slate-100 leading-relaxed font-medium">
             {assessment.feedback}
           </p>
         </div>
 
         {/* Correction */}
         {(assessment.correction || assessment.betterAlternative) && (
-          <div className="bg-orange-50/80 p-3 rounded-xl border border-orange-100/80 flex gap-3 relative group/correction">
+          <div className="bg-orange-500/10 p-3 rounded-xl border border-orange-500/20 flex gap-3 relative group/correction mt-4">
             <div className="mt-0.5 shrink-0">
-              <AlertCircle size={18} className="text-orange-500" />
+              <AlertCircle size={18} className="text-orange-400" />
             </div>
             <div className="pr-8">
-              <span className="text-[10px] font-bold text-orange-600 uppercase block mb-0.5 tracking-wider">
+              <span className="text-[10px] font-bold text-orange-400 uppercase block mb-0.5 tracking-wider">
                 Better Way to Say It
               </span>
-              <p className="text-slate-900 font-medium text-sm message-text-container">
+              <p className="text-white font-medium text-sm message-text-container">
                 {assessment.correction || assessment.betterAlternative}
               </p>
             </div>
@@ -120,7 +120,7 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
                   masteryScore: 0,
                 })
               }
-              className="absolute top-3 right-3 opacity-100 md:opacity-0 group-hover/correction:opacity-100 transition-opacity p-1.5 bg-white/80 rounded-full text-orange-400 hover:text-orange-600 shadow-sm border border-orange-100"
+              className="absolute top-3 right-3 opacity-100 md:opacity-0 group-hover/correction:opacity-100 transition-opacity p-1.5 bg-navy-muted/80 rounded-full text-orange-400 hover:text-orange-300 shadow-sm border border-orange-500/20"
               title="Save to Dictionary"
             >
               <BookmarkPlus size={14} />
@@ -132,9 +132,9 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
       {/* 2. ACCORDION TRIGGER */}
       <button
         onClick={onToggleDetails}
-        className="w-full px-5 py-3 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between group hover:bg-slate-100 transition-colors"
+        className="w-full px-5 py-3 bg-white/5 border-t border-white/5 flex items-center justify-between group hover:bg-white/10 transition-colors"
       >
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-slate-700">
+        <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider group-hover:text-slate-100">
           <BarChart2 size={14} />
           <span>Detailed Metrics</span>
         </div>
@@ -147,31 +147,31 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
 
       {/* 3. EXPANDED DETAILS */}
       {!isCollapsed && (
-        <div className="p-4 md:p-5 border-t border-slate-100 bg-slate-50/50 animate-in slide-in-from-top-2 fade-in">
+        <div className="p-4 md:p-5 border-t border-white/5 bg-navy-muted/30 animate-in slide-in-from-top-2 fade-in">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6">
             {/* Radar Chart */}
-            <div className="h-48 w-full bg-white rounded-xl border border-slate-200 p-2 shadow-sm">
+            <div className="h-48 w-full bg-navy-muted rounded-xl border border-white/10 p-2 shadow-sm">
               <RadarScore assessment={assessment} />
             </div>
 
             {/* Grammar & Vocab Cards */}
             <div className="space-y-3">
-              <div className="bg-white p-3 rounded-xl border border-blue-100 shadow-sm">
-                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-blue-50">
-                  <PenTool size={14} className="text-blue-500" />
-                  <span className="text-xs font-bold text-blue-700 uppercase">Grammar</span>
+              <div className="bg-navy-muted p-3 rounded-xl border border-blue-500/20 shadow-sm">
+                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-blue-500/10">
+                  <PenTool size={14} className="text-blue-400" />
+                  <span className="text-xs font-bold text-blue-400 uppercase">Grammar</span>
                 </div>
-                <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
+                <p className="text-xs md:text-sm text-slate-100 leading-relaxed">
                   {assessment.grammarAnalysis}
                 </p>
               </div>
 
-              <div className="bg-white p-3 rounded-xl border border-purple-100 shadow-sm">
-                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-purple-50">
-                  <BookOpen size={14} className="text-purple-500" />
-                  <span className="text-xs font-bold text-purple-700 uppercase">Vocabulary</span>
+              <div className="bg-navy-muted p-3 rounded-xl border border-purple-500/20 shadow-sm">
+                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-purple-500/10">
+                  <BookOpen size={14} className="text-purple-400" />
+                  <span className="text-xs font-bold text-purple-400 uppercase">Vocabulary</span>
                 </div>
-                <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
+                <p className="text-xs md:text-sm text-slate-100 leading-relaxed">
                   {assessment.vocabularyAnalysis}
                 </p>
               </div>
@@ -180,10 +180,10 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
 
           {/* Tone Variations */}
           {assessment.alternativeTones && (
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+            <div className="bg-navy-muted rounded-xl border border-white/10 p-4 shadow-sm">
               <div className="flex items-center gap-2 mb-3">
                 <Info size={14} className="text-slate-400" />
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                   Tone Variations
                 </h4>
               </div>
@@ -191,7 +191,7 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
                 {TONE_VARIATIONS.map((tone) => (
                   <div
                     key={tone.key}
-                    className={`p-3 rounded-lg border border-slate-100 hover:border-slate-200 transition-all group ${tone.bg}`}
+                    className={`p-3 rounded-lg border border-white/5 hover:border-white/10 transition-all group ${tone.bg}`}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <div
@@ -212,7 +212,7 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
                               masteryScore: 0,
                             })
                           }
-                          className="opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-white rounded-full text-slate-400 hover:text-brand-600 shadow-sm border border-slate-100"
+                          className="opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-white/5 rounded-full text-slate-400 hover:text-primary shadow-sm border border-white/10"
                           title="Save to Dictionary"
                         >
                           <BookmarkPlus size={14} />
@@ -226,18 +226,18 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
                             )
                           }
                           disabled={audioLoadingId === `${msg.id}-${tone.key}`}
-                          className="opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-white rounded-full text-slate-400 hover:text-brand-600 disabled:opacity-50 shadow-sm border border-slate-100"
+                          className="opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-white/5 rounded-full text-slate-400 hover:text-primary disabled:opacity-50 shadow-sm border border-white/10"
                           title="Listen"
                         >
                           {audioLoadingId === `${msg.id}-${tone.key}` ? (
-                            <Loader2 size={12} className="animate-spin" />
+                            <Loader size={12} className="animate-spin" />
                           ) : (
                             <Volume2 size={14} />
                           )}
                         </button>
                       </div>
                     </div>
-                    <p className="text-sm text-slate-700 message-text-container">
+                    <p className="text-sm text-slate-100 message-text-container">
                       "{assessment.alternativeTones[tone.key as ToneKey]}"
                     </p>
                   </div>
@@ -250,14 +250,14 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
 
       {/* 4. ACTIONS */}
       {chatMode !== 'translator' && (
-        <div className="p-4 md:p-5 border-t border-slate-100 bg-white flex flex-col gap-4">
+        <div className="p-4 md:p-5 border-t border-white/5 bg-navy-muted/50 flex flex-col gap-4">
           {/* Video Button */}
           <div>
             {msg.generatedVideoUrl ? (
-              <div className="rounded-xl overflow-hidden border border-slate-200 bg-black shadow-md relative">
+              <div className="rounded-xl overflow-hidden border border-white/10 bg-black shadow-md relative">
                 <button 
                   onClick={() => setIsVideoCollapsed(!isVideoCollapsed)}
-                  className="w-full bg-slate-900 hover:bg-slate-800 text-white text-[10px] py-2 px-3 font-bold uppercase flex items-center justify-between transition-colors"
+                  className="w-full bg-navy-muted hover:bg-white/10 text-slate-100 text-[10px] py-2 px-3 font-bold uppercase flex items-center justify-between transition-colors"
                 >
                   <div className="flex items-center gap-2">
                     <Video size={12} /> Generated Context Video
@@ -287,11 +287,11 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
               <button
                 onClick={() => onGenerateVideo(msg)}
                 disabled={videoLoadingId === msg.id}
-                className="w-full py-3 bg-slate-50 hover:bg-slate-800 hover:text-white text-slate-600 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50 border border-slate-200 hover:border-slate-800"
+                className="w-full py-3 bg-white/5 hover:bg-white/10 hover:text-primary text-slate-400 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50 border border-white/10"
               >
                 {videoLoadingId === msg.id ? (
                   <>
-                    <Loader2 size={16} className="animate-spin" />
+                    <Loader size={16} className="animate-spin" />
                     Directing Scene... (~1m)
                   </>
                 ) : (
@@ -309,37 +309,37 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
             <div className="grid grid-cols-3 gap-3">
               <button
                 onClick={() => onNextLesson('easier')}
-                className="flex flex-col items-center justify-center p-3 rounded-xl bg-white border border-slate-200 hover:bg-emerald-50 hover:border-emerald-200 transition-all group"
+                className="flex flex-col items-center justify-center p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-emerald-500/10 hover:border-emerald-500/20 transition-all group"
               >
                 <TrendingDown
                   size={20}
-                  className="text-emerald-500 mb-1 group-hover:scale-110 transition-transform"
+                  className="text-emerald-400 mb-1 group-hover:scale-110 transition-transform"
                 />
-                <span className="text-[10px] font-bold text-slate-500 group-hover:text-emerald-700 uppercase tracking-tight">
+                <span className="text-[10px] font-bold text-slate-400 group-hover:text-emerald-400 uppercase tracking-tight">
                   Easier
                 </span>
               </button>
               <button
                 onClick={() => onNextLesson('same')}
-                className="flex flex-col items-center justify-center p-3 rounded-xl bg-brand-50 border border-brand-200 hover:bg-brand-100 transition-all group shadow-sm"
+                className="flex flex-col items-center justify-center p-3 rounded-xl bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-all group shadow-sm"
               >
                 <RefreshCcw
                   size={20}
-                  className="text-brand-500 mb-1 group-hover:rotate-180 transition-transform duration-500"
+                  className="text-primary mb-1 group-hover:rotate-180 transition-transform duration-500"
                 />
-                <span className="text-[10px] font-bold text-brand-700 uppercase tracking-tight">
+                <span className="text-[10px] font-bold text-primary uppercase tracking-tight">
                   New One
                 </span>
               </button>
               <button
                 onClick={() => onNextLesson('harder')}
-                className="flex flex-col items-center justify-center p-3 rounded-xl bg-white border border-slate-200 hover:bg-rose-50 hover:border-rose-200 transition-all group"
+                className="flex flex-col items-center justify-center p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-rose-500/10 hover:border-rose-500/20 transition-all group"
               >
                 <TrendingUp
                   size={20}
-                  className="text-rose-500 mb-1 group-hover:scale-110 transition-transform"
+                  className="text-rose-400 mb-1 group-hover:scale-110 transition-transform"
                 />
-                <span className="text-[10px] font-bold text-slate-500 group-hover:text-rose-700 uppercase tracking-tight">
+                <span className="text-[10px] font-bold text-slate-400 group-hover:text-rose-400 uppercase tracking-tight">
                   Harder
                 </span>
               </button>
@@ -364,7 +364,7 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
               </button>
               <button
                 onClick={() => onNextLesson('same')}
-                className="w-full py-3 bg-white text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-xl text-xs font-bold border border-slate-200 transition-colors"
+                className="w-full py-3 bg-white/5 text-slate-400 hover:text-slate-200 hover:bg-white/10 rounded-xl text-xs font-bold border border-white/10 transition-colors"
               >
                 End & Start New Story
               </button>
@@ -388,14 +388,14 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
                     chatContainer.scrollTo({ top: 0, behavior: 'smooth' });
                   }
                 }}
-                className="w-full py-3 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-xl text-xs font-bold border border-slate-200 transition-colors flex items-center justify-center gap-2"
+                className="w-full py-3 bg-white/5 text-slate-100 hover:text-white hover:bg-white/10 rounded-xl text-xs font-bold border border-white/10 transition-colors flex items-center justify-center gap-2"
               >
                 <BarChart2 size={16} /> Review Performance
               </button>
               {onReturnToModes && (
                 <button
                   onClick={onReturnToModes}
-                  className="w-full py-3 bg-white text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-xl text-xs font-bold border border-slate-200 transition-colors"
+                  className="w-full py-3 bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl text-xs font-bold border border-white/10 transition-colors"
                 >
                   Return to Mode Selection
                 </button>

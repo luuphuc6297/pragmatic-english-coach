@@ -1,7 +1,8 @@
 import React, {useState} from 'react';
+import { Avatar3D } from '../ui/Avatar3D';
 import {UserPreferences, CEFRLevel} from '../../types';
-import {ONBOARDING_LEVELS, ONBOARDING_TOPICS} from '../../configs/constants';
-import {X, Save, User, Award, BookOpen, Activity, LogOut, AlertTriangle} from 'lucide-react';
+import {ONBOARDING_LEVELS, ONBOARDING_TOPICS, PREDEFINED_AVATARS} from '../../configs/constants';
+import {X, Save, User, Award, BookOpen, Activity, LogOut, AlertTriangle, Plus} from 'lucide-react';
 import {styles} from '../../configs/themeConfig';
 
 interface UserProfileProps {
@@ -24,8 +25,20 @@ const UserProfile: React.FC<UserProfileProps> = ({
   onLogout,
 }) => {
   const [name, setName] = useState(preferences.name);
+  const [avatarUrl, setAvatarUrl] = useState(preferences.avatarUrl);
   const [level, setLevel] = useState<CEFRLevel>(preferences.level);
   const [topics, setTopics] = useState<string[]>(preferences.topics);
+  const [customTopic, setCustomTopic] = useState('');
+  const [customTopicsList, setCustomTopicsList] = useState<{id: string, label: string, icon: string, colorClass: string}[]>(
+    preferences.customTopics || preferences.topics
+      .filter(t => !ONBOARDING_TOPICS.some(ot => ot.label === t))
+      .map((t, i) => ({
+        id: `custom-init-${i}`,
+        label: t,
+        icon: '✨',
+        colorClass: 'bg-tealAccent text-navy border-tealAccent shadow-tealAccent/25'
+      }))
+  );
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleTopicToggle = (topicId: string) => {
@@ -34,12 +47,48 @@ const UserProfile: React.FC<UserProfileProps> = ({
     );
   };
 
+  const handleRemoveCustomTopic = (e: React.MouseEvent, topicId: string, topicLabel: string) => {
+    e.stopPropagation();
+    setCustomTopicsList(prev => prev.filter(t => t.id !== topicId));
+    setTopics(prev => prev.filter(t => t !== topicLabel));
+  };
+
+  const handleAddCustomTopic = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = customTopic.trim();
+    if (!trimmed) return;
+    
+    // Check if it already exists
+    const allTopics = [...ONBOARDING_TOPICS, ...customTopicsList];
+    const exists = allTopics.some(t => t.label.toLowerCase() === trimmed.toLowerCase());
+    
+    if (!exists) {
+      const newTopic = {
+        id: `custom-${Date.now()}`,
+        label: trimmed,
+        icon: '✨',
+        colorClass: 'bg-tealAccent text-navy border-tealAccent shadow-tealAccent/25'
+      };
+      setCustomTopicsList([...customTopicsList, newTopic]);
+      setTopics([...topics, trimmed]);
+    } else if (!topics.includes(trimmed)) {
+      // If it exists but not selected, select it
+      const existing = allTopics.find(t => t.label.toLowerCase() === trimmed.toLowerCase());
+      if (existing) {
+        setTopics([...topics, existing.label]);
+      }
+    }
+    setCustomTopic('');
+  };
+
   const handleSave = () => {
     if (name.trim() && topics.length > 0) {
       onSave({
         name,
         level,
         topics,
+        avatarUrl,
+        customTopics: customTopicsList,
       });
       onClose();
     }
@@ -96,47 +145,68 @@ const UserProfile: React.FC<UserProfileProps> = ({
         <div className={styles.modal.content}>
           {/* Avatar and Name */}
           <div className="flex flex-col items-center mb-8">
-            <div className="w-24 h-24 rounded-full bg-slate-100 border-4 border-white shadow-lg overflow-hidden mb-4">
-              <img 
-                src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(name || 'User')}&backgroundColor=0ea5e9,10b981,6366f1,f43f5e,f59e0b,8b5cf6`} 
-                alt="User Avatar" 
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
+            <div className="w-24 h-24 rounded-full bg-navy-muted border-4 border-white/10 shadow-lg overflow-hidden mb-4 relative group">
+              <Avatar3D 
+                src={avatarUrl} 
+                className="w-full h-full object-cover scale-110"
+                fallback={<span className="text-navy font-bold text-3xl">{name?.charAt(0)?.toUpperCase() || 'U'}</span>}
               />
             </div>
-            <h3 className="text-2xl font-bold text-slate-800">{name || 'User'}</h3>
-            <p className="text-slate-500 text-sm">{preferences.level} Learner</p>
+            <h3 className="text-2xl font-bold text-white">{name || 'User'}</h3>
+            <p className="text-slate-400 text-sm">{preferences.level} Learner</p>
           </div>
 
           {/* Stats Row */}
           <div className="grid grid-cols-3 gap-4 mb-8">
-            <div className={`${styles.card.stat} bg-brand-50 border-brand-100`}>
-              <Award className="text-brand-500 mb-2" size={24} />
-              <span className="text-2xl font-black text-brand-700">{stats.averageScore}</span>
-              <span className="text-xs font-bold text-brand-400 uppercase tracking-wide">
+            <div className={`${styles.card.stat} bg-primary/10 border-primary/20`}>
+              <Award className="text-primary mb-2" size={24} />
+              <span className="text-2xl font-black text-primary">{stats.averageScore}</span>
+              <span className="text-xs font-bold text-primary/80 uppercase tracking-wide">
                 Avg Score
               </span>
             </div>
-            <div className={`${styles.card.stat} bg-purple-50 border-purple-100`}>
-              <BookOpen className="text-purple-500 mb-2" size={24} />
-              <span className="text-2xl font-black text-purple-700">{stats.lessonsCompleted}</span>
-              <span className="text-xs font-bold text-purple-400 uppercase tracking-wide">
+            <div className={`${styles.card.stat} bg-purple-500/10 border-purple-500/20`}>
+              <BookOpen className="text-purple-400 mb-2" size={24} />
+              <span className="text-2xl font-black text-purple-400">{stats.lessonsCompleted}</span>
+              <span className="text-xs font-bold text-purple-400/80 uppercase tracking-wide">
                 Lessons Done
               </span>
             </div>
-            <div className={`${styles.card.stat} bg-emerald-50 border-emerald-100`}>
-              <Activity className="text-emerald-500 mb-2" size={24} />
-              <span className="text-2xl font-black text-emerald-700">{level}</span>
-              <span className="text-xs font-bold text-emerald-400 uppercase tracking-wide">
+            <div className={`${styles.card.stat} bg-emerald-500/10 border-emerald-500/20`}>
+              <Activity className="text-emerald-400 mb-2" size={24} />
+              <span className="text-2xl font-black text-emerald-400">{level}</span>
+              <span className="text-xs font-bold text-emerald-400/80 uppercase tracking-wide">
                 Current Level
               </span>
             </div>
           </div>
 
-          <hr className="border-slate-100 mb-8" />
+          <hr className="border-white/10 mb-8" />
 
           {/* Edit Form */}
           <div className="space-y-6">
+            {/* Avatar Selection */}
+            <div>
+              <label className={`block ${styles.text.sectionLabel} mb-3`}>
+                Choose Avatar
+              </label>
+              <div className="flex flex-wrap gap-3 justify-center sm:justify-start">
+                {PREDEFINED_AVATARS.map((url, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setAvatarUrl(url)}
+                    className={`w-14 h-14 rounded-full overflow-hidden border-2 transition-all ${
+                      avatarUrl === url
+                        ? 'border-brand-500 scale-110 shadow-lg shadow-brand-500/20'
+                        : 'border-white/10 hover:border-white/30 hover:scale-105 opacity-70 hover:opacity-100'
+                    }`}
+                  >
+                    <Avatar3D src={url} className="w-full h-full object-cover scale-110" fallback={<span className="text-navy font-bold text-sm">A{idx+1}</span>} />
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Name */}
             <div>
               <label className={`block ${styles.text.sectionLabel} mb-2`}>
@@ -146,7 +216,7 @@ const UserProfile: React.FC<UserProfileProps> = ({
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className={`${styles.input.light} font-bold text-slate-900 placeholder:font-normal`}
+                className={`${styles.input.dark} font-bold text-white placeholder:font-normal`}
                 placeholder="Enter your name"
               />
             </div>
@@ -161,13 +231,14 @@ const UserProfile: React.FC<UserProfileProps> = ({
                   <button
                     key={lvl.id}
                     onClick={() => setLevel(lvl.id)}
-                    className={`px-4 py-3 rounded-xl border text-sm font-bold transition-all ${
+                    className={`px-4 py-3 rounded-xl border text-sm font-bold transition-all flex items-center justify-center gap-2 ${
                       level === lvl.id
-                        ? 'bg-brand-500 text-white border-brand-500 shadow-md transform scale-[1.02]'
-                        : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                        ? `${lvl.colorClass} transform scale-[1.02]`
+                        : 'bg-white/5 text-slate-400 border-white/10 hover:border-white/20 hover:bg-white/10'
                     }`}
                   >
-                    {lvl.title}
+                    <span className="text-lg">{lvl.icon}</span>
+                    <span className={level === lvl.id ? lvl.textClass : ''}>{lvl.title}</span>
                   </button>
                 ))}
               </div>
@@ -181,34 +252,69 @@ const UserProfile: React.FC<UserProfileProps> = ({
                 </label>
                 <button 
                   onClick={() => {
-                    if (topics.length === ONBOARDING_TOPICS.length) {
+                    const allTopics = [...ONBOARDING_TOPICS, ...customTopicsList];
+                    if (topics.length === allTopics.length) {
                       setTopics([]);
                     } else {
-                      setTopics(ONBOARDING_TOPICS.map(t => t.label));
+                      setTopics(allTopics.map(t => t.label));
                     }
                   }}
-                  className="text-xs font-bold text-brand-500 hover:text-brand-600 transition-colors"
+                  className="text-xs font-bold text-primary hover:text-primary/80 transition-colors"
                 >
-                  {topics.length === ONBOARDING_TOPICS.length ? 'Deselect All' : 'Select All'}
+                  {topics.length === [...ONBOARDING_TOPICS, ...customTopicsList].length ? 'Deselect All' : 'Select All'}
                 </button>
               </div>
               <div className="flex flex-wrap gap-2">
-                {ONBOARDING_TOPICS.map((topic) => {
+                {[...ONBOARDING_TOPICS, ...customTopicsList].map((topic) => {
                   const isSelected = topics.includes(topic.label);
                   return (
                     <button
                       key={topic.id}
                       onClick={() => handleTopicToggle(topic.label)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all flex items-center gap-1.5 group ${
                         isSelected
-                          ? 'bg-slate-800 text-white border-slate-800'
-                          : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                          ? `${topic.colorClass} shadow-md scale-105`
+                          : 'bg-white/5 text-slate-400 border-white/10 hover:border-white/20'
                       }`}
                     >
+                      {topic.icon.startsWith('http') ? (
+                        <img src={topic.icon} alt={topic.label} className="w-3.5 h-3.5 object-contain" />
+                      ) : (
+                        <span>{topic.icon}</span>
+                      )}
                       {topic.label}
+                      {topic.id.startsWith('custom-') && (
+                        <span 
+                          onClick={(e) => handleRemoveCustomTopic(e, topic.id, topic.label)}
+                          className="ml-1 opacity-50 hover:opacity-100 hover:text-rose-400 transition-colors p-0.5 rounded-full hover:bg-rose-500/10"
+                        >
+                          <X size={12} />
+                        </span>
+                      )}
                     </button>
                   );
                 })}
+              </div>
+              
+              {/* Custom Topic Input */}
+              <div className="mt-4 pt-4 border-t border-white/5">
+                <form onSubmit={handleAddCustomTopic} className="flex gap-2 max-w-sm">
+                  <input
+                    type="text"
+                    value={customTopic}
+                    onChange={(e) => setCustomTopic(e.target.value)}
+                    placeholder="Add custom topic (e.g. Pets)..."
+                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!customTopic.trim()}
+                    className="bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                  >
+                    <Plus size={16} />
+                    Add
+                  </button>
+                </form>
               </div>
             </div>
           </div>
@@ -219,7 +325,7 @@ const UserProfile: React.FC<UserProfileProps> = ({
           {onLogout && (
             <button
               onClick={() => setShowLogoutConfirm(true)}
-              className="px-4 py-2.5 rounded-xl font-bold text-rose-500 hover:bg-rose-50 flex items-center gap-2 transition-colors"
+              className="px-4 py-2.5 rounded-xl font-bold text-rose-500 hover:bg-rose-500/10 flex items-center gap-2 transition-colors"
             >
               <LogOut size={18} />
               Logout

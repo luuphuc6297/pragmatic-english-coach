@@ -1,5 +1,5 @@
 {
-  "name": "Pragmatic English Coach",
+  "name": "Aura Coach",
   "description": "An AI-powered English learning application focusing on natural communication and CEFR standards using a dual-layer assessment model.",
   "requestFramePermissions": [
     "microphone"

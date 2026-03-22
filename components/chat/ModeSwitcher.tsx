@@ -12,43 +12,43 @@ interface ModeSwitcherProps {
 const MODE_BUTTONS = [
   {
     mode: 'roleplay' as ChatMode,
-    icon: MessageSquare,
+    icon: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Activities/Trophy.png',
     label: 'Roleplay',
-    activeColor: 'text-brand-600',
+    activeColor: 'text-brand-400',
   },
   {
     mode: 'story' as ChatMode,
-    icon: BookOpen,
+    icon: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Travel%20and%20places/National%20Park.png',
     label: 'Story Mode',
-    activeColor: 'text-purple-600',
+    activeColor: 'text-purple-400',
   },
   {
     mode: 'translator' as ChatMode,
-    icon: Languages,
+    icon: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Activities/Sparkles.png',
     label: 'Translator',
-    activeColor: 'text-indigo-600',
+    activeColor: 'text-indigo-400',
   },
   {
     mode: 'quiz' as ChatMode,
-    icon: BrainCircuit,
+    icon: 'https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Travel%20and%20places/High%20Voltage.png',
     label: 'Quiz',
-    activeColor: 'text-amber-600',
+    activeColor: 'text-amber-400',
   },
 ] as const;
 
 const ModeSwitcher: React.FC<ModeSwitcherProps> = ({ chatMode, setChatMode, onToggleSidebar }) => {
   return (
-    <div className="flex-none px-4 py-3 bg-white/95 backdrop-blur-sm border-b border-slate-200 flex justify-start md:justify-center items-center shadow-sm z-10 overflow-x-auto no-scrollbar touch-pan-x">
+    <div className="flex-none px-4 py-3 bg-navy-muted/95 backdrop-blur-sm border-b border-white/5 flex justify-start md:justify-center items-center shadow-sm z-10 overflow-x-auto no-scrollbar touch-pan-x">
       {onToggleSidebar && (
         <button
           onClick={onToggleSidebar}
-          className="md:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors shrink-0 mr-2"
+          className="md:hidden p-2 text-slate-400 hover:bg-white/5 rounded-full transition-colors shrink-0 mr-2"
         >
           <PanelLeft size={18} />
         </button>
       )}
       
-      <div className="flex items-center p-1 bg-slate-100/80 rounded-full border border-slate-200/60 shrink-0">
+      <div className="flex items-center p-1 bg-navy rounded-full border border-white/10 shrink-0">
         {MODE_BUTTONS.map(({ mode, icon: Icon, label, activeColor }) => {
           const isActive = chatMode === mode;
           return (
@@ -61,7 +61,15 @@ const ModeSwitcher: React.FC<ModeSwitcherProps> = ({ chatMode, setChatMode, onTo
                   : styles.button.pillInactive
               }`}
             >
-              <Icon size={14} className={isActive ? activeColor : 'text-slate-400'} />
+              {typeof Icon === 'string' ? (
+                Icon.startsWith('http') ? (
+                  <img src={Icon} alt={label} className="w-4 h-4 object-contain group-hover:-translate-y-0.5 transition-transform duration-300" referrerPolicy="no-referrer" />
+                ) : (
+                  <span className="text-sm">{Icon}</span>
+                )
+              ) : (
+                <Icon size={14} className={isActive ? activeColor : 'text-slate-400'} />
+              )}
               {label}
             </button>
           );

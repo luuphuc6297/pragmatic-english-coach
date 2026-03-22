@@ -1,14 +1,12 @@
 import React, { useState } from 'react';
 import {Clock, PanelLeftClose, RefreshCw, Check} from 'lucide-react';
 import {ConversationHistory} from '../../types';
-import {styles} from '../../configs/themeConfig';
+import {styles, MODE_CARDS} from '../../configs/themeConfig';
 
-const MODE_BADGE_CLASSES: Record<string, string> = {
-  roleplay: 'bg-emerald-500/20 text-emerald-400',
-  story: 'bg-purple-500/20 text-purple-400',
+const getModeBadgeClass = (mode: string) => {
+  const card = MODE_CARDS.find(c => c.mode === mode);
+  return card ? card.iconBg : 'bg-slate-500/20 text-slate-400';
 };
-
-const DEFAULT_BADGE_CLASS = 'bg-blue-500/20 text-blue-400';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -77,17 +75,17 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
       
       {onStartNew && (
-        <div className="p-3 border-b border-slate-800 shrink-0 flex flex-col gap-2">
+        <div className="p-3 border-b border-white/5 shrink-0 flex flex-col gap-2">
           <button
             onClick={onStartNew}
-            className="w-full py-2.5 px-4 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2 shadow-sm"
+            className="w-full py-2.5 px-4 bg-primary hover:bg-primary/90 text-navy rounded-xl font-bold transition-colors flex items-center justify-center gap-2 shadow-sm"
           >
             <span className="text-lg leading-none">+</span> New Conversation
           </button>
           {onShowAllHistory && (
             <button
               onClick={onShowAllHistory}
-              className="w-full py-2 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              className="w-full py-2 px-4 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2 border border-white/10"
             >
               View All History
             </button>
@@ -109,7 +107,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="flex items-center gap-2 mb-1 w-full overflow-hidden">
                 <span
-                  className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${MODE_BADGE_CLASSES[item.mode] ?? DEFAULT_BADGE_CLASS}`}
+                  className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${getModeBadgeClass(item.mode)}`}
                 >
                   {item.mode}
                 </span>
